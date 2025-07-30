@@ -1,0 +1,134 @@
+--- test.i.patch	2025-02-28 21:08:47.111022156 +0100
++++ test.i	2025-02-28 22:31:38.328585146 +0100
+@@ -22,6 +22,118 @@
+ {
+     return (char *) v;
+ }
++FileDirectoryEntry toFileDirectoryEntry(void* data)
++{
++    return (FileDirectoryEntry) data;
++}
++MmsError* MmsError_create()
++{
++    MmsError* error = (MmsError*) malloc(sizeof(MmsError));
++    if (error != NULL)
++        *error = MMS_ERROR_NONE;
++    return error;
++}
++
++int MmsError_getValue(MmsError* self)
++{
++    if (self == NULL)
++        return -1; // Return some error indicator if pointer is NULL
++    
++    return (int)*self;
++}
++
++void MmsErrror_destroy(MmsError* error) {
++    free(error);
++}
++
++typedef struct {
++    FILE* file;
++    bool error;
++} FileDownloadContext;
++
++/**
++ * Callback function for file read operations
++ */
++void 
++fileReadHandler(void* parameter, int32_t frsmId, uint8_t* buffer, uint32_t bytesReceived) 
++{
++    FileDownloadContext* context = (FileDownloadContext*) parameter;
++    
++    if (context && context->file) {
++        size_t bytesWritten = fwrite(buffer, 1, bytesReceived, context->file);
++        
++        if (bytesWritten != bytesReceived) {
++            context->error = true;
++        }
++    }
++}
++
++/**
++ * Downloads a file from an IEC 61850 server to the local filesystem
++ * 
++ * @param connection The MmsConnection handle to use for downloading
++ * @param mmsError Pointer to an MmsError variable to store error information
++ * @param remoteFilePath Path to the file on the remote server
++ * @param localFilePath Path where to store the downloaded file
++ * 
++ * @return true if successful, false otherwise
++ */
++bool MmsConnection_downloadFile(MmsConnection connection, MmsError* mmsError, const char* remoteFilePath, const char* localFilePath)
++{
++    if (connection == NULL || mmsError == NULL || remoteFilePath == NULL || localFilePath == NULL) {
++        if (mmsError)
++            *mmsError = MMS_ERROR_INVALID_ARGUMENTS;
++        return false;
++    }
++
++    bool success = false;
++    uint32_t fileSize = 0;
++    uint64_t lastModified = 0;
++    int32_t frsmId = -1;
++    FileDownloadContext context = {NULL, false};
++
++    // Open local file for writing
++    context.file = fopen(localFilePath, "wb");
++    if (context.file == NULL) {
++        *mmsError = MMS_ERROR_FILE_OTHER;
++        return false;
++    }
++
++    // Open remote file
++    frsmId = MmsConnection_fileOpen(connection, mmsError, remoteFilePath, 0, &fileSize, &lastModified);
++    
++    if (frsmId < 0 || *mmsError != MMS_ERROR_NONE) {
++        fclose(context.file);
++        return false;
++    }
++
++    // Read file data in chunks
++    bool moreFollows = true;
++    while (moreFollows && !context.error) {
++        moreFollows = MmsConnection_fileRead(connection, mmsError, frsmId, fileReadHandler, &context);
++        
++        if (*mmsError != MMS_ERROR_NONE) {
++            context.error = true;
++        }
++    }
++
++    // Close the remote file
++    MmsConnection_fileClose(connection, mmsError, frsmId);
++    
++    // Close the local file
++    fclose(context.file);
++    
++    success = !context.error && (*mmsError == MMS_ERROR_NONE);
++    
++    // If download failed, delete the partially downloaded file
++    if (!success) {
++        remove(localFilePath);
++    }
++    
++    return success;
++}
++
++
+ DataAttribute* toDataAttribute(DataObject * DO)
+ { return (DataAttribute*)DO;}
+ DataAttribute* toDataAttribute(ModelNode * MN)
+@@ -55,6 +167,12 @@
+ 
+ ModelNode* toModelNode(LogicalNode *);
+ ModelNode* toModelNode(DataObject *);
++bool MmsConnection_downloadFile(MmsConnection connection, MmsError* mmsError, const char* remoteFilePath, const char* localFilePath);
++FileDirectoryEntry toFileDirectoryEntry(void*);
++MmsError* MmsError_create();
++void MmsErrror_destroy(MmsError* error);
++int MmsError_getValue(MmsError* self);
++void fileReadHandler(void* parameter, int32_t frsmId, uint8_t* buffer, uint32_t bytesReceived);
+ DataAttribute* toDataAttribute(DataObject *);
+ DataAttribute* toDataAttribute(ModelNode *);
+ DataObject* toDataObject(ModelNode *);

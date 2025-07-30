@@ -1,0 +1,12 @@
+include README.md
+include LICENSE
+include CLAUDE.md
+recursive-include patches *.patch
+recursive-include tests *.py
+include run_tests.py
+exclude .github
+exclude examples
+exclude test-dist-py*
+exclude dist
+exclude .venv
+exclude *.whl

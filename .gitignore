@@ -1,0 +1,29 @@
+# Ignore the libiec61850 directory (source code downloaded by build script)
+/libiec61850/
+
+# Ignore compiled Python files
+*.pyc
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ignore build directories
+/build/
+/dist/
+/lib/libiec61850/
+*.so
+*.dll
+*.dylib
+
+dist/*
+
+
+# Ignore IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Ignore temporary files
+.DS_Store
+*~
