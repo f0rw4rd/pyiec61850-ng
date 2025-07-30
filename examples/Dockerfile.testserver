@@ -1,0 +1,68 @@
+# Dockerfile for libiec61850 test server
+# This creates a test IEC 61850 server that can be used to run the pyiec61850 examples against
+
+FROM ubuntu:22.04
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    git \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /build
+
+# Download and extract libiec61850 v1.6.0
+RUN wget https://github.com/mz-automation/libiec61850/archive/refs/tags/v1.6.0.tar.gz \
+    && tar -xzf v1.6.0.tar.gz \
+    && rm v1.6.0.tar.gz
+
+# Download and setup mbedTLS for TLS support
+RUN cd libiec61850-1.6.0/third_party && \
+    mkdir -p mbedtls && \
+    cd mbedtls && \
+    wget https://github.com/Mbed-TLS/mbedtls/archive/refs/tags/v2.28.0.tar.gz && \
+    tar -xzf v2.28.0.tar.gz && \
+    mv mbedtls-2.28.0 mbedtls-2.28 && \
+    rm v2.28.0.tar.gz
+
+# Build libiec61850 with examples
+WORKDIR /build/libiec61850-1.6.0
+RUN mkdir build && cd build && \
+    cmake .. && \
+    make -j$(nproc)
+
+# Create directory for model files
+RUN mkdir -p /etc/iec61850
+
+# Copy server examples to runtime location
+RUN cp build/examples/server_example_basic_io/server_example_basic_io /usr/local/bin/ && \
+    cp build/examples/server_example_goose/server_example_goose /usr/local/bin/ && \
+    cp build/examples/server_example_config_file/server_example_config_file /usr/local/bin/ && \
+    cp build/examples/server_example_control/server_example_control /usr/local/bin/ && \
+    cp build/examples/server_example_61400_25/server_example_61400_25 /usr/local/bin/
+
+# Copy model files if they exist
+RUN find examples -name "*.cfg" -o -name "*.cid" | xargs -I {} cp {} /etc/iec61850/ || true
+
+# Create a startup script
+RUN echo '#!/bin/bash\n\
+echo "Available IEC 61850 test servers:"\n\
+echo "1. server_example_basic_io - Basic I/O operations"\n\
+echo "2. server_example_goose - GOOSE publisher"\n\
+echo "3. server_example_control - Control operations"\n\
+echo "4. server_example_61400_25 - Wind power plant data model"\n\
+echo "5. server_example_config_file - Server with config file"\n\
+echo ""\n\
+echo "Starting server_example_basic_io on port 102..."\n\
+echo ""\n\
+exec /usr/local/bin/server_example_basic_io "$@"' > /usr/local/bin/start-server.sh && \
+    chmod +x /usr/local/bin/start-server.sh
+
+# Expose IEC 61850 MMS port
+EXPOSE 102
+
+# Default command runs the basic I/O example server
+CMD ["/usr/local/bin/start-server.sh"]

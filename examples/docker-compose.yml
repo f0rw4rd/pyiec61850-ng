@@ -1,0 +1,50 @@
+services:
+  # IEC 61850 test server
+  iec61850-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.testserver
+    container_name: iec61850-testserver
+    hostname: iec61850-server
+    ports:
+      - "10102:102"  # Map to 10102 to avoid conflicts with local services
+    networks:
+      - iec61850-net
+    environment:
+      - TZ=UTC
+    restart: unless-stopped
+    command: ["/usr/local/bin/server_example_basic_io"]
+    
+  # Alternative server configurations (uncomment one to use)
+  # iec61850-server-goose:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.testserver
+  #   container_name: iec61850-goose-server
+  #   hostname: iec61850-goose
+  #   ports:
+  #     - "10102:102"
+  #   networks:
+  #     - iec61850-net
+  #   cap_add:
+  #     - NET_RAW  # Required for GOOSE
+  #   command: ["/usr/local/bin/server_example_goose"]
+
+  # iec61850-server-control:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.testserver
+  #   container_name: iec61850-control-server
+  #   hostname: iec61850-control
+  #   ports:
+  #     - "10102:102"
+  #   networks:
+  #     - iec61850-net
+  #   command: ["/usr/local/bin/server_example_control"]
+
+networks:
+  iec61850-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
