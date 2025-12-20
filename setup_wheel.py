@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 from setuptools.dist import Distribution
 
 # Get version from environment or default
-version = os.environ.get('PACKAGE_VERSION', '1.6.0.2')
+version = os.environ.get('PACKAGE_VERSION', '1.6.0.7')
 
 # Read README
 readme_path = os.path.join(os.path.dirname(__file__), "README.md")
@@ -49,7 +49,7 @@ setup(
         "Programming Language :: Python :: Implementation :: CPython",
     ],
     python_requires=">=3.8",
-    keywords="iec61850 mms goose iec-61850 power-systems substation-automation smart-grid scada",
+    keywords="iec61850 mms goose iec-61850 power-systems substation-automation smart-grid scada tase2 iccp iec60870-6",
     project_urls={
         "Bug Reports": "https://github.com/f0rw4rd/pyiec61850-ng/issues",
         "Source": "https://github.com/f0rw4rd/pyiec61850-ng",
