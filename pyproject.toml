@@ -12,13 +12,17 @@ authors = [
 ]
 keywords = [
     "iec61850",
-    "mms", 
+    "mms",
     "goose",
     "iec-61850",
     "power-systems",
     "substation-automation",
     "smart-grid",
-    "scada"
+    "scada",
+    "tase2",
+    "iccp",
+    "iec60870-6",
+    "control-center"
 ]
 classifiers = [
     "Development Status :: 4 - Beta",

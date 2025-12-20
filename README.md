@@ -100,3 +100,59 @@ python version.py        # Package version: 1.6.0.1
 python version.py --libiec61850  # libiec61850 version: v1.6.0
 ```
 
+## TASE.2/ICCP Support
+
+pyiec61850-ng includes support for TASE.2 (IEC 60870-6), also known as ICCP
+(Inter-Control Center Communications Protocol), used for real-time data exchange
+between control centers in the electric utility industry.
+
+### TASE.2 Quick Start
+
+```python
+from pyiec61850.tase2 import TASE2Client
+
+client = TASE2Client(
+    local_ap_title="1.1.1.999",
+    remote_ap_title="1.1.1.998"
+)
+client.connect("192.168.1.100", port=102)
+
+# Discover domains (VCC/ICC)
+domains = client.get_domains()
+for domain in domains:
+    print(f"Domain: {domain.name} ({domain.domain_type})")
+
+# Read a data point
+value = client.read_point("ICC1", "Voltage")
+print(f"Value: {value.value}, Quality: {value.quality}")
+
+# Security analysis
+security = client.analyze_security()
+print(f"Readable points: {security['readable_points']}")
+print(f"Concerns: {security['concerns']}")
+
+client.disconnect()
+```
+
+### TASE.2 Features
+
+- **Domain Discovery**: VCC (Virtual Control Center) and ICC (Indication Control Center)
+- **Variable Enumeration**: List and read data points with quality information
+- **Data Point Access**: Read/write individual points or bulk enumeration
+- **Transfer Sets (Block 2)**: RBE (Report-by-Exception) management
+- **Device Control (Block 5)**: Select-Before-Operate, commands, setpoints
+- **Bilateral Tables**: Access control configuration queries
+- **Security Analysis**: Automated security assessment and recommendations
+
+### TASE.2 Data Types
+
+```python
+from pyiec61850.tase2 import (
+    Domain,          # VCC/ICC domain
+    PointValue,      # Data point with value and quality
+    TransferSet,     # Block 2 transfer set
+    BilateralTable,  # Access control table
+    ServerInfo,      # Server information
+)
+```
+
