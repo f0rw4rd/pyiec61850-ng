@@ -49,6 +49,9 @@ from .connection import MmsConnectionWrapper, is_available
 
 # Data types
 from .types import (
+    DataFlags,
+    TransferSetConditions,
+    ProtectionEvent,
     Domain,
     Variable,
     PointValue,
@@ -65,18 +68,38 @@ from .constants import (
     # Defaults
     DEFAULT_PORT,
     DEFAULT_TIMEOUT,
-    # Point types
-    POINT_TYPE_REAL,
+    # Point types (IEC 60870-6 compliant)
     POINT_TYPE_STATE,
+    POINT_TYPE_STATE_SUPPLEMENTAL,
     POINT_TYPE_DISCRETE,
-    POINT_TYPE_REAL_Q,
+    POINT_TYPE_REAL,
     POINT_TYPE_STATE_Q,
+    POINT_TYPE_STATE_SUPPLEMENTAL_Q,
     POINT_TYPE_DISCRETE_Q,
+    POINT_TYPE_REAL_Q,
+    POINT_TYPE_STATE_Q_TIMETAG,
+    POINT_TYPE_STATE_SUPPLEMENTAL_Q_TIMETAG,
+    POINT_TYPE_DISCRETE_Q_TIMETAG,
+    POINT_TYPE_REAL_Q_TIMETAG,
+    POINT_TYPE_STATE_EXTENDED,
+    POINT_TYPE_STATE_SUPPLEMENTAL_EXTENDED,
+    POINT_TYPE_DISCRETE_EXTENDED,
+    POINT_TYPE_REAL_EXTENDED,
+    POINT_TYPE_SINGLE_PROTECTION_EVENT,
+    POINT_TYPE_PACKED_PROTECTION_EVENT,
+    # Legacy aliases
     POINT_TYPE_REAL_Q_TIME,
     POINT_TYPE_STATE_Q_TIME,
     POINT_TYPE_DISCRETE_Q_TIME,
-    POINT_TYPE_STATE_SUPPLEMENTAL,
     POINT_TYPES,
+    # State values
+    STATE_BETWEEN,
+    STATE_ON,
+    STATE_OFF,
+    STATE_INVALID,
+    STATE_CLOSED,
+    STATE_TRIPPED,
+    STATE_OPEN,
     # Control types
     CONTROL_TYPE_COMMAND,
     CONTROL_TYPE_SETPOINT_REAL,
@@ -89,11 +112,35 @@ from .constants import (
     BLOCK_4,
     BLOCK_5,
     CONFORMANCE_BLOCKS,
-    # Quality flags
+    # Quality flags (bitmask)
+    QUALITY_VALIDITY_VALID,
+    QUALITY_VALIDITY_SUSPECT,
+    QUALITY_VALIDITY_HELD,
+    QUALITY_VALIDITY_NOT_VALID,
+    QUALITY_SOURCE_TELEMETERED,
+    QUALITY_SOURCE_ENTERED,
+    QUALITY_SOURCE_CALCULATED,
+    QUALITY_SOURCE_ESTIMATED,
+    QUALITY_NORMAL_VALUE,
+    QUALITY_TIMESTAMP_QUALITY,
+    # Legacy quality flags
     QUALITY_GOOD,
     QUALITY_INVALID,
     QUALITY_HELD,
     QUALITY_SUSPECT,
+    # DS Conditions
+    DS_CONDITIONS_INTERVAL,
+    DS_CONDITIONS_CHANGE,
+    DS_CONDITIONS_OPERATOR_REQUEST,
+    DS_CONDITIONS_EXTERNAL_EVENT,
+    DS_CONDITIONS_ALL,
+    # Protection event flags
+    PROTECTION_EVENT_GENERAL,
+    PROTECTION_EVENT_PHASE_A,
+    PROTECTION_EVENT_PHASE_B,
+    PROTECTION_EVENT_PHASE_C,
+    PROTECTION_EVENT_EARTH,
+    PROTECTION_EVENT_REVERSE,
     # Report flags
     REPORT_BUFFERED,
     REPORT_INTERVAL_TIMEOUT,
@@ -106,7 +153,7 @@ from .constants import (
     TAG_OPEN_AND_CLOSE_INHIBIT,
     TAG_CLOSE_ONLY_INHIBIT,
     TAG_NONE,
-    # States
+    # Client states
     STATE_DISCONNECTED,
     STATE_CONNECTING,
     STATE_CONNECTED,
@@ -115,6 +162,10 @@ from .constants import (
     # Domain types
     DOMAIN_VCC,
     DOMAIN_ICC,
+    # Protocol limits
+    MAX_DATA_SET_SIZE,
+    SBO_TIMEOUT,
+    MAX_POINT_NAME_LENGTH,
 )
 
 # Exceptions
@@ -124,8 +175,9 @@ from .exceptions import (
     # Library
     LibraryError,
     LibraryNotFoundError,
-    # Connection
-    ConnectionError,
+    # Connection (TASE2ConnectionError is the proper name, ConnectionError is deprecated alias)
+    TASE2ConnectionError,
+    ConnectionError,  # Deprecated: use TASE2ConnectionError
     ConnectionFailedError,
     ConnectionTimeoutError,
     ConnectionClosedError,
@@ -135,9 +187,10 @@ from .exceptions import (
     AuthenticationError,
     AccessDeniedError,
     BilateralTableError,
-    # Operations
+    # Operations (TASE2TimeoutError is the proper name, TimeoutError is deprecated alias)
     OperationError,
-    TimeoutError,
+    TASE2TimeoutError,
+    TimeoutError,  # Deprecated: use TASE2TimeoutError
     InvalidParameterError,
     ResourceNotFoundError,
     DomainNotFoundError,
@@ -178,6 +231,9 @@ __all__ = [
     "MmsConnectionWrapper",
     "is_available",
     # Data types
+    "DataFlags",
+    "TransferSetConditions",
+    "ProtectionEvent",
     "Domain",
     "Variable",
     "PointValue",
@@ -193,28 +249,61 @@ __all__ = [
     "POINT_TYPES",
     "CONTROL_TYPES",
     "CONFORMANCE_BLOCKS",
+    # State values
+    "STATE_BETWEEN",
+    "STATE_ON",
+    "STATE_OFF",
+    "STATE_INVALID",
+    "STATE_CLOSED",
+    "STATE_TRIPPED",
+    "STATE_OPEN",
+    # Quality bitmask
+    "QUALITY_VALIDITY_VALID",
+    "QUALITY_VALIDITY_SUSPECT",
+    "QUALITY_VALIDITY_HELD",
+    "QUALITY_VALIDITY_NOT_VALID",
+    "QUALITY_SOURCE_TELEMETERED",
+    "QUALITY_SOURCE_ENTERED",
+    "QUALITY_SOURCE_CALCULATED",
+    "QUALITY_SOURCE_ESTIMATED",
+    # Legacy quality
     "QUALITY_GOOD",
     "QUALITY_INVALID",
     "QUALITY_HELD",
     "QUALITY_SUSPECT",
+    # DS Conditions
+    "DS_CONDITIONS_INTERVAL",
+    "DS_CONDITIONS_CHANGE",
+    "DS_CONDITIONS_OPERATOR_REQUEST",
+    "DS_CONDITIONS_EXTERNAL_EVENT",
+    "DS_CONDITIONS_ALL",
+    # Commands
     "CMD_OFF",
     "CMD_ON",
+    # Blocks
     "BLOCK_1",
     "BLOCK_2",
     "BLOCK_3",
     "BLOCK_4",
     "BLOCK_5",
+    # Client states
     "STATE_DISCONNECTED",
     "STATE_CONNECTING",
     "STATE_CONNECTED",
     "STATE_CLOSING",
+    # Domain types
     "DOMAIN_VCC",
     "DOMAIN_ICC",
+    # Protocol limits
+    "MAX_DATA_SET_SIZE",
+    "SBO_TIMEOUT",
+    "MAX_POINT_NAME_LENGTH",
     # Exceptions
     "TASE2Error",
     "LibraryError",
     "LibraryNotFoundError",
-    "ConnectionError",
+    "TASE2ConnectionError",
+    "ConnectionError",  # Deprecated alias for TASE2ConnectionError
     "ConnectionFailedError",
     "ConnectionTimeoutError",
     "ConnectionClosedError",
@@ -224,7 +313,8 @@ __all__ = [
     "AccessDeniedError",
     "BilateralTableError",
     "OperationError",
-    "TimeoutError",
+    "TASE2TimeoutError",
+    "TimeoutError",  # Deprecated alias for TASE2TimeoutError
     "InvalidParameterError",
     "ResourceNotFoundError",
     "DomainNotFoundError",
