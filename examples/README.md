@@ -2,6 +2,8 @@
 
 This directory contains practical examples demonstrating how to use the pyiec61850 library for various IEC 61850 operations.
 
+All examples use the **safe `MMSClient` wrapper** which handles memory management automatically, preventing crashes from NULL pointer dereferences and memory leaks.
+
 ## Prerequisites
 
 Before running these examples, make sure you have:
@@ -69,7 +71,7 @@ Or uncomment one of the alternative service definitions in `docker-compose.yml`.
 ## Examples
 
 ### [01_basic_connection.py](01_basic_connection.py)
-Demonstrates the fundamentals of connecting to an IEC 61850 server.
+Demonstrates the fundamentals of connecting to an IEC 61850 server using the safe `MMSClient`.
 
 **Usage:**
 ```bash
@@ -78,10 +80,9 @@ python 01_basic_connection.py 192.168.1.100
 ```
 
 **Key concepts:**
-- Creating IED connection objects
-- Establishing connections
-- Error handling
-- Proper cleanup
+- Using `MMSClient` with context manager for automatic cleanup
+- Establishing connections with error handling
+- Getting server identity information
 
 ### [02_device_discovery.py](02_device_discovery.py)
 Shows how to discover the data model hierarchy of an IEC 61850 server.
@@ -93,18 +94,17 @@ python 02_device_discovery.py 192.168.1.100
 ```
 
 **Key concepts:**
-- Discovering logical devices
-- Enumerating logical nodes
-- Listing data objects
-- Using LinkedList operations
-- Memory management with ctypes
+- Discovering logical devices with `get_logical_devices()`
+- Enumerating logical nodes with `get_logical_nodes()`
+- Listing data objects with `get_data_objects()`
+- Automatic LinkedList cleanup (no manual memory management needed)
 
 ### [03_read_data_values.py](03_read_data_values.py)
 Demonstrates reading different types of data values from the server.
 
 **Usage:**
 ```bash
-# Read common objects
+# Discover and read sample values
 python 03_read_data_values.py <server_ip>
 
 # Read specific object
@@ -113,17 +113,16 @@ python 03_read_data_values.py 192.168.1.100 "TEMPLATE1LD0/MMXU1.TotW.mag.f"
 ```
 
 **Key concepts:**
-- Reading data objects with functional constraints
-- Handling different MMS data types
-- Extracting values from MmsValue objects
-- Common object references
+- Reading values with `read_value()`
+- Automatic MmsValue conversion to Python types
+- Automatic cleanup of MmsValue objects
 
 ### [04_file_transfer.py](04_file_transfer.py)
 Shows how to download files from an IEC 61850 server using MMS file services.
 
 **Usage:**
 ```bash
-# List files in root directory
+# Show file transfer info
 python 04_file_transfer.py <server_ip>
 
 # Download specific file
@@ -132,41 +131,75 @@ python 04_file_transfer.py 192.168.1.100 "/COMTRADE/fault_001.cfg" "fault_001.cf
 ```
 
 **Key concepts:**
-- MMS connection vs IED connection
+- Using raw bindings with safe `MmsErrorGuard` for cleanup
 - File download operations
-- Error handling with MmsError
-- File directory operations
+- Mixing raw bindings with safe utilities
+
+### [05_tase2_demo.py](05_tase2_demo.py)
+Demonstrates TASE.2/ICCP client functionality with a mock server.
+
+**Usage:**
+```bash
+python 05_tase2_demo.py
+```
+
+**Key concepts:**
+- TASE.2 domain discovery (VCC/ICC)
+- Reading data points with quality
+- Transfer sets and control operations
+- Security analysis
 
 ## Common Patterns
 
+### Using MMSClient (Recommended)
+
+The `MMSClient` handles all memory management automatically:
+
+```python
+from pyiec61850.mms import MMSClient, ConnectionFailedError
+
+with MMSClient() as client:
+    try:
+        client.connect(hostname, port)
+        devices = client.get_logical_devices()
+        # No manual cleanup needed!
+    except ConnectionFailedError as e:
+        print(f"Connection failed: {e}")
+# Connection automatically closed
+```
+
 ### Error Handling
-All examples demonstrate proper error handling:
-```python
-error = pyiec61850.IedConnection_connect(connection, hostname, port)
-if error != pyiec61850.IED_ERROR_OK:
-    error_msg = pyiec61850.IedClientError_toString(error)
-    print(f"Connection failed: {error_msg}")
-```
 
-### Memory Management
-Proper cleanup is essential:
+With MMSClient, use exception handling:
 ```python
-# Always destroy objects when done
-pyiec61850.IedConnection_close(connection)
-pyiec61850.IedConnection_destroy(connection)
-pyiec61850.MmsValue_delete(value)
-pyiec61850.LinkedList_destroy(list)
-```
-
-### Using ctypes
-Many operations require ctypes for proper C interop:
-```python
-import ctypes
-
-error = ctypes.c_int()
-device_list = pyiec61850.IedConnection_getLogicalDeviceList(
-    connection, ctypes.byref(error)
+from pyiec61850.mms import (
+    MMSClient,
+    ConnectionFailedError,
+    NotConnectedError,
+    MMSError,
 )
+
+try:
+    client.connect(hostname, port)
+    devices = client.get_logical_devices()
+except ConnectionFailedError as e:
+    print(f"Connection failed: {e}")
+except MMSError as e:
+    print(f"MMS error: {e}")
+```
+
+### Using Raw Bindings with Safe Utilities
+
+If you need raw bindings, use the safe utilities:
+```python
+from pyiec61850.mms.utils import LinkedListGuard, safe_to_char_p
+import pyiec61850.pyiec61850 as iec61850
+
+# Automatic LinkedList cleanup
+with LinkedListGuard(device_list) as guard:
+    for name in guard:
+        print(name)  # NULL entries automatically skipped
+# List destroyed automatically
 ```
 
 ## Troubleshooting
