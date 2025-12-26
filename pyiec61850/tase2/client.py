@@ -7,11 +7,12 @@ operations including discovery, data access, and control.
 """
 
 from typing import Any, Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from .connection import MmsConnectionWrapper, is_available
 from .types import (
+    DataFlags,
     Domain,
     Variable,
     PointValue,
@@ -31,6 +32,7 @@ from .constants import (
     BLOCK_5,
     STATE_CONNECTED,
     STATE_DISCONNECTED,
+    SBO_TIMEOUT,
 )
 from .exceptions import (
     TASE2Error,
@@ -46,6 +48,86 @@ from .exceptions import (
 )
 
 logger = logging.getLogger(__name__)
+
+# MMS type constants - loaded from libiec61850 at module init
+# These are cached to avoid repeated getattr calls and provide consistent fallbacks
+_MMS_TYPES = {}
+
+
+def _init_mms_types():
+    """Initialize MMS type constants from libiec61850 library."""
+    global _MMS_TYPES
+    # Correct MMS type values per libiec61850 src/mms/inc/mms_common.h
+    # These fallbacks match the actual libiec61850 MmsType enum values
+    FALLBACK_MMS_TYPES = {
+        'ARRAY': 0,
+        'STRUCTURE': 1,
+        'BOOLEAN': 2,
+        'BIT_STRING': 3,
+        'INTEGER': 4,
+        'UNSIGNED': 5,
+        'FLOAT': 6,
+        'OCTET_STRING': 7,
+        'VISIBLE_STRING': 8,
+        'GENERALIZED_TIME': 9,
+        'BINARY_TIME': 10,
+        'BCD': 11,
+        'OBJ_ID': 12,
+        'STRING': 13,
+        'UTC_TIME': 14,
+        'DATA_ACCESS_ERROR': 15,
+    }
+    try:
+        import pyiec61850.pyiec61850 as iec61850
+        _MMS_TYPES = {
+            'ARRAY': getattr(iec61850, 'MMS_ARRAY', FALLBACK_MMS_TYPES['ARRAY']),
+            'STRUCTURE': getattr(iec61850, 'MMS_STRUCTURE', FALLBACK_MMS_TYPES['STRUCTURE']),
+            'BOOLEAN': getattr(iec61850, 'MMS_BOOLEAN', FALLBACK_MMS_TYPES['BOOLEAN']),
+            'BIT_STRING': getattr(iec61850, 'MMS_BIT_STRING', FALLBACK_MMS_TYPES['BIT_STRING']),
+            'INTEGER': getattr(iec61850, 'MMS_INTEGER', FALLBACK_MMS_TYPES['INTEGER']),
+            'UNSIGNED': getattr(iec61850, 'MMS_UNSIGNED', FALLBACK_MMS_TYPES['UNSIGNED']),
+            'FLOAT': getattr(iec61850, 'MMS_FLOAT', FALLBACK_MMS_TYPES['FLOAT']),
+            'OCTET_STRING': getattr(iec61850, 'MMS_OCTET_STRING', FALLBACK_MMS_TYPES['OCTET_STRING']),
+            'VISIBLE_STRING': getattr(iec61850, 'MMS_VISIBLE_STRING', FALLBACK_MMS_TYPES['VISIBLE_STRING']),
+            'STRING': getattr(iec61850, 'MMS_STRING', FALLBACK_MMS_TYPES['STRING']),
+            'UTC_TIME': getattr(iec61850, 'MMS_UTC_TIME', FALLBACK_MMS_TYPES['UTC_TIME']),
+        }
+        logger.debug(f"MMS type constants loaded: {_MMS_TYPES}")
+    except ImportError:
+        # Use fallback values if library not available
+        _MMS_TYPES = FALLBACK_MMS_TYPES.copy()
+        logger.warning("Using fallback MMS type constants - library not available")
+
+
+# Initialize MMS types when module loads
+_init_mms_types()
+
+
+def _validate_point_name(name: str) -> bool:
+    """
+    Validate TASE.2 data point name per IEC 60870-6-503.
+
+    Rules:
+    - Must not be empty
+    - Can only contain A-Z, a-z, 0-9, and underscore
+    - Cannot start with a digit
+    - Maximum length is 32 characters
+
+    Args:
+        name: The data point name to validate
+
+    Returns:
+        True if valid, False otherwise
+    """
+    from .constants import MAX_POINT_NAME_LENGTH
+
+    if not name:
+        return False
+    if len(name) > MAX_POINT_NAME_LENGTH:
+        return False
+    if name[0].isdigit():
+        return False
+    return all(c.isalnum() or c == '_' for c in name)
 
 
 class TASE2Client:
@@ -109,6 +191,10 @@ class TASE2Client:
         self._domains: Dict[str, Domain] = {}
         self._server_info: Optional[ServerInfo] = None
 
+        # SBO (Select-Before-Operate) tracking
+        # Maps device key (domain/device) to select timestamp
+        self._sbo_select_times: Dict[str, float] = {}
+
     # =========================================================================
     # Connection Management
     # =========================================================================
@@ -164,6 +250,7 @@ class TASE2Client:
         self._connection.disconnect()
         self._domains.clear()
         self._server_info = None
+        self._sbo_select_times.clear()
 
     def _ensure_connected(self) -> None:
         """Ensure connection is active."""
@@ -304,6 +391,15 @@ class TASE2Client:
         """
         self._ensure_connected()
 
+        # Validate point name per IEC 60870-6-503 (warn only for backward compat)
+        if not _validate_point_name(name):
+            logger.warning(
+                f"Invalid TASE.2 point name '{name}' - names should contain only "
+                "alphanumeric characters and underscores, not start with a digit, "
+                "and be max 32 characters"
+            )
+
+        raw_value = None
         try:
             raw_value = self._connection.read_variable(domain, name)
             return self._parse_point_value(raw_value, domain, name)
@@ -314,6 +410,9 @@ class TASE2Client:
             raise ReadError(f"{domain}/{name}", str(e))
         except Exception as e:
             raise ReadError(f"{domain}/{name}", str(e))
+        finally:
+            # Clean up MmsValue to prevent memory leaks
+            self._cleanup_mms_value(raw_value)
 
     def read_points(
         self,
@@ -362,6 +461,14 @@ class TASE2Client:
         """
         self._ensure_connected()
 
+        # Validate point name per IEC 60870-6-503 (warn only for backward compat)
+        if not _validate_point_name(name):
+            logger.warning(
+                f"Invalid TASE.2 point name '{name}' - names should contain only "
+                "alphanumeric characters and underscores, not start with a digit, "
+                "and be max 32 characters"
+            )
+
         try:
             return self._connection.write_variable(domain, name, value)
 
@@ -385,19 +492,23 @@ class TASE2Client:
                 return PointValue(
                     value=None,
                     quality=QUALITY_INVALID,
+                    flags=DataFlags(validity=12),  # NOT_VALID
                     name=name,
                     domain=domain,
                 )
 
             # Handle different value types
             value = self._extract_value(raw_value)
-            quality = self._extract_quality(raw_value)
+            flags = self._extract_quality(raw_value)
             timestamp = self._extract_timestamp(raw_value)
+            cov_counter = self._extract_cov_counter(raw_value)
 
             return PointValue(
                 value=value,
-                quality=quality,
+                quality=flags.validity_name if flags else QUALITY_GOOD,
+                flags=flags,
                 timestamp=timestamp,
+                cov_counter=cov_counter,
                 name=name,
                 domain=domain,
             )
@@ -412,51 +523,173 @@ class TASE2Client:
             )
 
     def _extract_value(self, raw_value: Any) -> Any:
-        """Extract Python value from MMS value."""
+        """Extract Python value from MMS value (handles structured types)."""
         try:
-            # Import here to avoid circular import
             import pyiec61850.pyiec61850 as iec61850
 
-            # Try different extraction methods
-            if hasattr(iec61850, 'MmsValue_toDouble'):
+            # Check if this is a structured type (TASE.2 compound value)
+            mms_type = iec61850.MmsValue_getType(raw_value)
+
+            # Check for structure using cached type constant
+            if mms_type == _MMS_TYPES['STRUCTURE']:
+                # TASE.2 structured types: [value, flags?, timestamp?, cov?]
+                # First element is always the actual value
                 try:
-                    return iec61850.MmsValue_toDouble(raw_value)
+                    value_element = iec61850.MmsValue_getElement(raw_value, 0)
+                    if value_element:
+                        return self._extract_primitive(value_element)
                 except Exception:
                     pass
 
-            if hasattr(iec61850, 'MmsValue_toInt32'):
-                try:
-                    return iec61850.MmsValue_toInt32(raw_value)
-                except Exception:
-                    pass
-
-            if hasattr(iec61850, 'MmsValue_toString'):
-                try:
-                    return iec61850.MmsValue_toString(raw_value)
-                except Exception:
-                    pass
-
-            if hasattr(iec61850, 'MmsValue_getBoolean'):
-                try:
-                    return iec61850.MmsValue_getBoolean(raw_value)
-                except Exception:
-                    pass
-
-            return raw_value
+            # Not a structure, extract as primitive
+            return self._extract_primitive(raw_value)
 
         except Exception:
             return raw_value
 
-    def _extract_quality(self, raw_value: Any) -> str:
-        """Extract quality from MMS value."""
-        # Quality extraction depends on value type
-        # For now, assume good quality
-        return QUALITY_GOOD
+    def _extract_primitive(self, mms_value: Any) -> Any:
+        """Extract primitive Python value from MMS value."""
+        try:
+            import pyiec61850.pyiec61850 as iec61850
+
+            mms_type = iec61850.MmsValue_getType(mms_value)
+
+            # Use cached MMS type constants for comparisons
+            if mms_type == _MMS_TYPES['FLOAT']:
+                return iec61850.MmsValue_toFloat(mms_value)
+
+            if mms_type == _MMS_TYPES['INTEGER']:
+                return iec61850.MmsValue_toInt32(mms_value)
+
+            if mms_type == _MMS_TYPES['UNSIGNED']:
+                return iec61850.MmsValue_toUint32(mms_value)
+
+            if mms_type == _MMS_TYPES['BOOLEAN']:
+                return iec61850.MmsValue_getBoolean(mms_value)
+
+            if mms_type in (_MMS_TYPES['VISIBLE_STRING'], _MMS_TYPES['STRING']):
+                return iec61850.MmsValue_toString(mms_value)
+
+            # BIT_STRING (for state values)
+            if mms_type == _MMS_TYPES['BIT_STRING']:
+                return iec61850.MmsValue_getBitStringAsInteger(mms_value)
+
+            # Try generic float extraction
+            try:
+                return iec61850.MmsValue_toFloat(mms_value)
+            except Exception:
+                pass
+
+            # Try int extraction
+            try:
+                return iec61850.MmsValue_toInt32(mms_value)
+            except Exception:
+                pass
+
+            return mms_value
+
+        except Exception:
+            return mms_value
+
+    def _extract_quality(self, raw_value: Any) -> Optional[DataFlags]:
+        """Extract quality flags from MMS structured value."""
+        try:
+            import pyiec61850.pyiec61850 as iec61850
+
+            mms_type = iec61850.MmsValue_getType(raw_value)
+
+            # Only structures have quality fields
+            if mms_type == _MMS_TYPES['STRUCTURE']:
+                try:
+                    element_count = iec61850.MmsValue_getArraySize(raw_value)
+                    # Quality is typically 2nd element in structured types
+                    if element_count >= 2:
+                        flags_element = iec61850.MmsValue_getElement(raw_value, 1)
+                        if flags_element:
+                            # Extract as integer
+                            flags_type = iec61850.MmsValue_getType(flags_element)
+                            if flags_type in (_MMS_TYPES['INTEGER'],
+                                             _MMS_TYPES['UNSIGNED'],
+                                             _MMS_TYPES['BIT_STRING']):
+                                flags_raw = iec61850.MmsValue_toInt32(flags_element)
+                                return DataFlags.from_raw(flags_raw)
+                except Exception as e:
+                    logger.debug(f"Failed to extract quality: {e}")
+
+        except Exception:
+            pass
+
+        # Default: valid quality
+        return DataFlags()
 
     def _extract_timestamp(self, raw_value: Any) -> Optional[datetime]:
-        """Extract timestamp from MMS value."""
-        # Timestamp extraction depends on value type
+        """Extract timestamp from MMS structured value."""
+        try:
+            import pyiec61850.pyiec61850 as iec61850
+
+            mms_type = iec61850.MmsValue_getType(raw_value)
+
+            # Only structures have timestamp fields
+            if mms_type == _MMS_TYPES['STRUCTURE']:
+                try:
+                    element_count = iec61850.MmsValue_getArraySize(raw_value)
+                    # Timestamp is typically 3rd element
+                    if element_count >= 3:
+                        ts_element = iec61850.MmsValue_getElement(raw_value, 2)
+                        if ts_element:
+                            ts_type = iec61850.MmsValue_getType(ts_element)
+                            if ts_type == _MMS_TYPES['UTC_TIME']:
+                                epoch_ms = iec61850.MmsValue_getUtcTimeInMs(ts_element)
+                                # TASE.2 timestamps are UTC per IEC 60870-6
+                                return datetime.fromtimestamp(epoch_ms / 1000.0, tz=timezone.utc)
+                except Exception as e:
+                    logger.debug(f"Failed to extract timestamp: {e}")
+
+        except Exception:
+            pass
+
         return None
+
+    def _extract_cov_counter(self, raw_value: Any) -> Optional[int]:
+        """Extract COV (change-of-value) counter from MMS extended value."""
+        try:
+            import pyiec61850.pyiec61850 as iec61850
+
+            mms_type = iec61850.MmsValue_getType(raw_value)
+
+            # Only structures have COV counter fields
+            if mms_type == _MMS_TYPES['STRUCTURE']:
+                try:
+                    element_count = iec61850.MmsValue_getArraySize(raw_value)
+                    # COV counter is typically 4th element in extended types
+                    if element_count >= 4:
+                        cov_element = iec61850.MmsValue_getElement(raw_value, 3)
+                        if cov_element:
+                            return iec61850.MmsValue_toInt32(cov_element)
+                except Exception as e:
+                    logger.debug(f"Failed to extract COV counter: {e}")
+
+        except Exception:
+            pass
+
+        return None
+
+    def _cleanup_mms_value(self, mms_value: Any) -> None:
+        """
+        Clean up MmsValue object to prevent memory leaks.
+
+        Args:
+            mms_value: MmsValue object to delete, or None
+        """
+        if mms_value is None:
+            return
+
+        try:
+            import pyiec61850.pyiec61850 as iec61850
+            if hasattr(iec61850, 'MmsValue_delete'):
+                iec61850.MmsValue_delete(mms_value)
+        except Exception as e:
+            logger.debug(f"Failed to cleanup MmsValue: {e}")
 
     # =========================================================================
     # Data Sets
@@ -600,6 +833,77 @@ class TASE2Client:
 
         return transfer_sets
 
+    def get_transfer_set_details(self, domain: str, name: str) -> TransferSet:
+        """
+        Read full transfer set configuration.
+
+        Attempts to read all DSTS (Data Set Transfer Set) parameters
+        per IEC 60870-6 specification.
+
+        Args:
+            domain: Domain name
+            name: Transfer set name
+
+        Returns:
+            TransferSet with populated configuration
+        """
+        self._ensure_connected()
+
+        ts = TransferSet(name=name, domain=domain, data_set=name)
+
+        # Configuration variable patterns per TASE.2 specification
+        config_vars = [
+            # Interval configuration
+            (f"{name}_Interval", "interval"),
+            (f"{name}$Interval", "interval"),
+            (f"{name}_IntegrityCheck", "integrity_time"),
+            (f"{name}$IntegrityCheck", "integrity_time"),
+            # Buffer configuration
+            (f"{name}_BufferTime", "buffer_time"),
+            (f"{name}$BufferTime", "buffer_time"),
+            # RBE configuration
+            (f"{name}_RBE", "rbe_enabled"),
+            (f"{name}$RBE", "rbe_enabled"),
+            (f"{name}_AllChangesReported", "rbe_enabled"),
+            # Start time
+            (f"{name}_StartTime", "start_time"),
+            (f"{name}$StartTime", "start_time"),
+        ]
+
+        for var_name, attr in config_vars:
+            try:
+                pv = self.read_point(domain, var_name)
+                if pv.value is not None:
+                    current = getattr(ts, attr, None)
+                    # Only set if not already set
+                    if current is None or current == 0 or current is False:
+                        if attr == "rbe_enabled":
+                            setattr(ts, attr, bool(pv.value))
+                        elif attr in ("interval", "buffer_time", "integrity_time"):
+                            setattr(ts, attr, int(pv.value))
+                        else:
+                            setattr(ts, attr, pv.value)
+                        logger.debug(f"Read {var_name} = {pv.value}")
+            except Exception:
+                pass  # Variable may not exist
+
+        # Try to read DSConditions
+        try:
+            for var_name in [f"{name}_DSConditions", f"{name}$DSConditions"]:
+                try:
+                    pv = self.read_point(domain, var_name)
+                    if pv.value is not None:
+                        # DSConditions is a bitmask
+                        from .types import TransferSetConditions
+                        ts.conditions = TransferSetConditions.from_raw(int(pv.value))
+                        break
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        return ts
+
     def enable_transfer_set(self, domain: str, name: str) -> bool:
         """
         Enable a transfer set.
@@ -693,6 +997,8 @@ class TASE2Client:
         In TASE.2, SBO select is typically done by writing to a
         select variable associated with the control point.
 
+        The select state expires after SBO_TIMEOUT seconds (default 30s).
+
         Args:
             domain: Domain name
             device: Device/control point name
@@ -704,6 +1010,9 @@ class TASE2Client:
             SelectError: If selection fails
         """
         self._ensure_connected()
+
+        import time
+        device_key = f"{domain}/{device}"
 
         # Try common SBO select variable patterns
         select_names = [
@@ -717,6 +1026,8 @@ class TASE2Client:
             try:
                 # Write select value (typically 1 or True)
                 self._connection.write_variable(domain, select_var, 1)
+                # Record select timestamp for timeout tracking
+                self._sbo_select_times[device_key] = time.time()
                 logger.info(f"Selected device {domain}/{device}")
                 return True
             except Exception:
@@ -725,6 +1036,8 @@ class TASE2Client:
         # Try reading the device first to verify it exists, then assume select works
         try:
             self.read_point(domain, device)
+            # Record select timestamp for implicit select
+            self._sbo_select_times[device_key] = time.time()
             logger.info(f"Device {domain}/{device} accessible (implicit select)")
             return True
         except Exception as e:
@@ -733,6 +1046,9 @@ class TASE2Client:
     def operate_device(self, domain: str, device: str, value: Any) -> bool:
         """
         Operate a device (execute control action).
+
+        Note: If select_device was called, the select state must still be valid
+        (not expired). The default timeout is SBO_TIMEOUT seconds (30s).
 
         Args:
             domain: Domain name
@@ -743,12 +1059,31 @@ class TASE2Client:
             True if operation successful
 
         Raises:
-            OperateError: If operation fails
+            OperateError: If operation fails or select has timed out
         """
         self._ensure_connected()
 
+        import time
+        device_key = f"{domain}/{device}"
+
+        # Check if SBO select has expired
+        if device_key in self._sbo_select_times:
+            select_time = self._sbo_select_times[device_key]
+            elapsed = time.time() - select_time
+            if elapsed > SBO_TIMEOUT:
+                # Clear expired select
+                del self._sbo_select_times[device_key]
+                raise OperateError(
+                    f"{domain}/{device}",
+                    f"SBO select expired after {SBO_TIMEOUT}s (elapsed: {elapsed:.1f}s)"
+                )
+
         try:
-            return self._connection.write_variable(domain, device, value)
+            result = self._connection.write_variable(domain, device, value)
+            # Clear select after successful operate
+            if device_key in self._sbo_select_times:
+                del self._sbo_select_times[device_key]
+            return result
 
         except Exception as e:
             raise OperateError(f"{domain}/{device}", str(e))

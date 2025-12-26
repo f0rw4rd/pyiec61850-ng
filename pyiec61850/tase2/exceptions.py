@@ -29,9 +29,13 @@ class LibraryNotFoundError(LibraryError):
 
 
 # Connection Errors
-class ConnectionError(TASE2Error):
+class TASE2ConnectionError(TASE2Error):
     """Base class for connection-related errors."""
     pass
+
+
+# Backward compatibility alias (deprecated - shadows builtins.ConnectionError)
+ConnectionError = TASE2ConnectionError
 
 
 class ConnectionFailedError(ConnectionError):
@@ -118,7 +122,7 @@ class OperationError(TASE2Error):
     pass
 
 
-class TimeoutError(OperationError):
+class TASE2TimeoutError(OperationError):
     """Operation timed out."""
 
     def __init__(self, operation: str = "", timeout: int = 0):
@@ -129,6 +133,10 @@ class TimeoutError(OperationError):
             message += f" after {timeout}ms"
         super().__init__(message)
         self.timeout = timeout
+
+
+# Backward compatibility alias (deprecated - shadows builtins.TimeoutError)
+TimeoutError = TASE2TimeoutError
 
 
 class InvalidParameterError(OperationError):

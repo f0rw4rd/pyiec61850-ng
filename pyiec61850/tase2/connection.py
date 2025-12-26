@@ -24,6 +24,7 @@ from .constants import (
     STATE_CONNECTED,
     STATE_CLOSING,
     MMS_ERROR_NONE,
+    MAX_DATA_SET_SIZE,
 )
 from .exceptions import (
     LibraryNotFoundError,
@@ -193,13 +194,34 @@ class MmsConnectionWrapper:
     def _set_ap_title(self, iso_params: Any, ap_title: str, is_local: bool) -> None:
         """Set Application Process title from dot-separated string."""
         try:
-            # Parse AP title (e.g., "1.1.1.999" -> [1, 1, 1, 999])
-            parts = [int(p) for p in ap_title.split(".")]
-            # Note: Actual implementation depends on pyiec61850 API
-            # This is a placeholder for the ISO parameter setting
-            logger.debug(f"Set {'local' if is_local else 'remote'} AP title: {ap_title}")
-        except ValueError:
-            logger.warning(f"Invalid AP title format: {ap_title}")
+            # Validate AP title format (e.g., "1.1.1.999")
+            # Format: dot-separated integers forming an OID
+            try:
+                [int(p) for p in ap_title.split(".")]
+            except ValueError:
+                logger.warning(f"Invalid AP title format: {ap_title}")
+                return
+
+            # Try to set the AP title using the pyiec61850 API
+            if is_local:
+                if hasattr(iec61850, 'IsoConnectionParameters_setLocalApTitle'):
+                    iec61850.IsoConnectionParameters_setLocalApTitle(
+                        iso_params, ap_title, self._local_ae_qualifier
+                    )
+                    logger.debug(f"Set local AP title: {ap_title}")
+                else:
+                    logger.debug(f"Local AP title API not available: {ap_title}")
+            else:
+                if hasattr(iec61850, 'IsoConnectionParameters_setRemoteApTitle'):
+                    iec61850.IsoConnectionParameters_setRemoteApTitle(
+                        iso_params, ap_title, self._remote_ae_qualifier
+                    )
+                    logger.debug(f"Set remote AP title: {ap_title}")
+                else:
+                    logger.debug(f"Remote AP title API not available: {ap_title}")
+
+        except Exception as e:
+            logger.warning(f"Failed to set AP title {ap_title}: {e}")
 
     def disconnect(self) -> None:
         """Disconnect from server."""
@@ -404,13 +426,21 @@ class MmsConnectionWrapper:
 
             values = []
             if data_set:
-                # Get number of members
+                # Get number of members and values ONCE (fixed bug)
                 try:
                     count = iec61850.ClientDataSet_getDataSetSize(data_set)
-                    for i in range(count):
-                        value = iec61850.ClientDataSet_getValues(data_set)
-                        if value:
-                            member = iec61850.MmsValue_getElement(value, i)
+
+                    # Check data set size limit per IEC 60870-6
+                    if count > MAX_DATA_SET_SIZE:
+                        logger.warning(
+                            f"Data set {domain}/{name} has {count} members, "
+                            f"exceeding TASE.2 limit of {MAX_DATA_SET_SIZE}"
+                        )
+
+                    all_values = iec61850.ClientDataSet_getValues(data_set)
+                    if all_values:
+                        for i in range(count):
+                            member = iec61850.MmsValue_getElement(all_values, i)
                             if member:
                                 values.append(member)
                 except Exception as e:
@@ -461,6 +491,44 @@ class MmsConnectionWrapper:
         except Exception as e:
             raise TASE2Error(f"Failed to read {domain}/{variable}: {e}")
 
+    def _create_mms_value(self, value: Any) -> Any:
+        """
+        Create MmsValue from Python value.
+
+        Args:
+            value: Python value (bool, int, float, or str)
+
+        Returns:
+            MmsValue object or original value if already MmsValue
+        """
+        try:
+            # Check if it's already an MmsValue (has MMS type info)
+            if hasattr(value, '__class__') and 'MmsValue' in str(type(value)):
+                return value
+
+            # Create appropriate MmsValue based on Python type
+            if isinstance(value, bool):
+                if hasattr(iec61850, 'MmsValue_newBoolean'):
+                    return iec61850.MmsValue_newBoolean(value)
+            elif isinstance(value, int):
+                if hasattr(iec61850, 'MmsValue_newIntegerFromInt32'):
+                    return iec61850.MmsValue_newIntegerFromInt32(value)
+                elif hasattr(iec61850, 'MmsValue_newInteger'):
+                    return iec61850.MmsValue_newInteger(value)
+            elif isinstance(value, float):
+                if hasattr(iec61850, 'MmsValue_newFloat'):
+                    return iec61850.MmsValue_newFloat(value)
+            elif isinstance(value, str):
+                if hasattr(iec61850, 'MmsValue_newVisibleString'):
+                    return iec61850.MmsValue_newVisibleString(value)
+
+            # Return original value if no conversion available
+            return value
+
+        except Exception as e:
+            logger.debug(f"Failed to create MmsValue: {e}")
+            return value
+
     def write_variable(self, domain: str, variable: str, value: Any) -> bool:
         """
         Write a variable value.
@@ -475,9 +543,13 @@ class MmsConnectionWrapper:
         """
         self._ensure_connected()
 
+        # Convert Python value to MmsValue if needed
+        mms_value = self._create_mms_value(value)
+        created_value = mms_value is not value
+
         try:
             error = iec61850.IedConnection_writeObject(
-                self._connection, domain, variable, value
+                self._connection, domain, variable, mms_value
             )
 
             if error != iec61850.IED_ERROR_OK:
@@ -491,6 +563,13 @@ class MmsConnectionWrapper:
             raise
         except Exception as e:
             raise TASE2Error(f"Failed to write {domain}/{variable}: {e}")
+        finally:
+            # Clean up if we created the MmsValue
+            if created_value and hasattr(iec61850, 'MmsValue_delete'):
+                try:
+                    iec61850.MmsValue_delete(mms_value)
+                except Exception:
+                    pass
 
     # =========================================================================
     # Server Information

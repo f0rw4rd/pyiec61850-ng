@@ -16,7 +16,221 @@ from .constants import (
     POINT_TYPES,
     CONTROL_TYPES,
     CONFORMANCE_BLOCKS,
+    QUALITY_VALIDITY_VALID,
+    QUALITY_VALIDITY_SUSPECT,
+    QUALITY_VALIDITY_HELD,
+    QUALITY_VALIDITY_NOT_VALID,
+    QUALITY_SOURCE_TELEMETERED,
+    QUALITY_SOURCE_ENTERED,
+    QUALITY_SOURCE_CALCULATED,
+    QUALITY_SOURCE_ESTIMATED,
+    QUALITY_NORMAL_VALUE,
+    QUALITY_TIMESTAMP_QUALITY,
+    DS_CONDITIONS_INTERVAL,
+    DS_CONDITIONS_CHANGE,
+    DS_CONDITIONS_OPERATOR_REQUEST,
+    DS_CONDITIONS_EXTERNAL_EVENT,
 )
+
+
+@dataclass
+class DataFlags:
+    """
+    TASE.2 Data Flags (Quality) - 8-bit bitmask per IEC 60870-6.
+
+    The quality flags indicate the validity and source of data values.
+    """
+    validity: int = QUALITY_VALIDITY_VALID
+    source: int = QUALITY_SOURCE_TELEMETERED
+    normal_value: bool = False
+    timestamp_quality: bool = False
+
+    @property
+    def raw_value(self) -> int:
+        """Return the raw 8-bit bitmask value."""
+        value = self.validity | self.source
+        if self.normal_value:
+            value |= QUALITY_NORMAL_VALUE
+        if self.timestamp_quality:
+            value |= QUALITY_TIMESTAMP_QUALITY
+        return value
+
+    @classmethod
+    def from_raw(cls, value: int) -> 'DataFlags':
+        """Create DataFlags from raw 8-bit bitmask."""
+        return cls(
+            validity=value & 0x0F,  # bits 0-3
+            source=value & 0x30,     # bits 4-5
+            normal_value=bool(value & QUALITY_NORMAL_VALUE),
+            timestamp_quality=bool(value & QUALITY_TIMESTAMP_QUALITY),
+        )
+
+    @property
+    def is_valid(self) -> bool:
+        """Check if data quality indicates valid data."""
+        return self.validity == QUALITY_VALIDITY_VALID
+
+    @property
+    def is_suspect(self) -> bool:
+        """Check if data quality indicates suspect data."""
+        return self.validity == QUALITY_VALIDITY_SUSPECT
+
+    @property
+    def is_held(self) -> bool:
+        """Check if data quality indicates held data."""
+        return self.validity == QUALITY_VALIDITY_HELD
+
+    @property
+    def is_not_valid(self) -> bool:
+        """Check if data quality indicates not valid data."""
+        return self.validity == QUALITY_VALIDITY_NOT_VALID
+
+    @property
+    def validity_name(self) -> str:
+        """Return human-readable validity name."""
+        validity_names = {
+            QUALITY_VALIDITY_VALID: "VALID",
+            QUALITY_VALIDITY_SUSPECT: "SUSPECT",
+            QUALITY_VALIDITY_HELD: "HELD",
+            QUALITY_VALIDITY_NOT_VALID: "NOT_VALID",
+        }
+        return validity_names.get(self.validity, "UNKNOWN")
+
+    @property
+    def source_name(self) -> str:
+        """Return human-readable source name."""
+        source_names = {
+            QUALITY_SOURCE_TELEMETERED: "TELEMETERED",
+            QUALITY_SOURCE_ENTERED: "ENTERED",
+            QUALITY_SOURCE_CALCULATED: "CALCULATED",
+            QUALITY_SOURCE_ESTIMATED: "ESTIMATED",
+        }
+        return source_names.get(self.source, "UNKNOWN")
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            "validity": self.validity_name,
+            "source": self.source_name,
+            "normal_value": self.normal_value,
+            "timestamp_quality": self.timestamp_quality,
+            "is_valid": self.is_valid,
+            "raw": self.raw_value,
+        }
+
+    def __str__(self) -> str:
+        return f"DataFlags({self.validity_name}, {self.source_name})"
+
+
+@dataclass
+class TransferSetConditions:
+    """
+    TASE.2 Transfer Set Conditions (DSConditions).
+
+    Defines when data should be reported from server to client.
+    """
+    interval_timeout: bool = False
+    object_change: bool = False
+    operator_request: bool = False
+    external_event: bool = False
+
+    @property
+    def raw_value(self) -> int:
+        """Return the raw bitmask value."""
+        value = 0
+        if self.interval_timeout:
+            value |= DS_CONDITIONS_INTERVAL
+        if self.object_change:
+            value |= DS_CONDITIONS_CHANGE
+        if self.operator_request:
+            value |= DS_CONDITIONS_OPERATOR_REQUEST
+        if self.external_event:
+            value |= DS_CONDITIONS_EXTERNAL_EVENT
+        return value
+
+    @classmethod
+    def from_raw(cls, value: int) -> 'TransferSetConditions':
+        """Create TransferSetConditions from raw bitmask."""
+        return cls(
+            interval_timeout=bool(value & DS_CONDITIONS_INTERVAL),
+            object_change=bool(value & DS_CONDITIONS_CHANGE),
+            operator_request=bool(value & DS_CONDITIONS_OPERATOR_REQUEST),
+            external_event=bool(value & DS_CONDITIONS_EXTERNAL_EVENT),
+        )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            "interval_timeout": self.interval_timeout,
+            "object_change": self.object_change,
+            "operator_request": self.operator_request,
+            "external_event": self.external_event,
+            "raw": self.raw_value,
+        }
+
+
+@dataclass
+class ProtectionEvent:
+    """
+    TASE.2 Protection Event.
+
+    Represents a protection equipment event with flags, timing, and timestamp.
+    """
+    event_flags: int = 0
+    operating_time: int = 0
+    timestamp: Optional[datetime] = None
+    elapsed_time_valid: bool = True
+    blocked: bool = False
+    substituted: bool = False
+    topical: bool = True
+    event_valid: bool = True
+
+    @property
+    def has_general_fault(self) -> bool:
+        """Check if general fault flag is set."""
+        return bool(self.event_flags & 1)
+
+    @property
+    def has_phase_a_fault(self) -> bool:
+        """Check if phase A fault flag is set."""
+        return bool(self.event_flags & 2)
+
+    @property
+    def has_phase_b_fault(self) -> bool:
+        """Check if phase B fault flag is set."""
+        return bool(self.event_flags & 4)
+
+    @property
+    def has_phase_c_fault(self) -> bool:
+        """Check if phase C fault flag is set."""
+        return bool(self.event_flags & 8)
+
+    @property
+    def has_earth_fault(self) -> bool:
+        """Check if earth fault flag is set."""
+        return bool(self.event_flags & 16)
+
+    @property
+    def has_reverse_fault(self) -> bool:
+        """Check if reverse fault flag is set."""
+        return bool(self.event_flags & 32)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        result = {
+            "event_flags": self.event_flags,
+            "operating_time": self.operating_time,
+            "general": self.has_general_fault,
+            "phase_a": self.has_phase_a_fault,
+            "phase_b": self.has_phase_b_fault,
+            "phase_c": self.has_phase_c_fault,
+            "earth": self.has_earth_fault,
+            "reverse": self.has_reverse_fault,
+            "event_valid": self.event_valid,
+        }
+        if self.timestamp:
+            result["timestamp"] = self.timestamp.isoformat()
+        return result
 
 
 @dataclass
@@ -84,15 +298,19 @@ class PointValue:
     quality indicators and optional timestamp.
     """
     value: Any
-    quality: str = QUALITY_GOOD
+    quality: str = QUALITY_GOOD  # Legacy string quality (backward compat)
     timestamp: Optional[datetime] = None
     point_type: Optional[int] = None
     name: Optional[str] = None
     domain: Optional[str] = None
+    flags: Optional[DataFlags] = None  # New: proper quality flags
+    cov_counter: Optional[int] = None  # New: for Extended types
 
     @property
     def is_valid(self) -> bool:
         """Check if value quality is good."""
+        if self.flags is not None:
+            return self.flags.is_valid
         return self.quality == QUALITY_GOOD
 
     @property
@@ -102,12 +320,28 @@ class PointValue:
             return POINT_TYPES[self.point_type][0]
         return "UNKNOWN"
 
+    @property
+    def quality_flags(self) -> DataFlags:
+        """Return DataFlags (create from legacy quality if needed)."""
+        if self.flags is not None:
+            return self.flags
+        # Convert legacy string quality to DataFlags
+        if self.quality == QUALITY_GOOD:
+            return DataFlags(validity=QUALITY_VALIDITY_VALID)
+        else:
+            return DataFlags(validity=QUALITY_VALIDITY_NOT_VALID)
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
         result = {
             "value": self.value,
-            "quality": self.quality,
         }
+        # Include quality in appropriate format
+        if self.flags is not None:
+            result["flags"] = self.flags.to_dict()
+            result["quality"] = self.flags.validity_name
+        else:
+            result["quality"] = self.quality
         if self.timestamp:
             result["timestamp"] = self.timestamp.isoformat()
         if self.point_type:
@@ -116,6 +350,8 @@ class PointValue:
             result["name"] = self.name
         if self.domain:
             result["domain"] = self.domain
+        if self.cov_counter is not None:
+            result["cov_counter"] = self.cov_counter
         return result
 
 
@@ -177,12 +413,13 @@ class TransferSet:
     """
     name: str
     domain: str
-    data_set: str
+    data_set: str = ""
     interval: int = 0  # Interval in seconds
     rbe_enabled: bool = False  # Report-by-exception
     buffer_time: int = 0
     integrity_time: int = 0
     start_time: Optional[datetime] = None
+    conditions: Optional[TransferSetConditions] = None  # DSConditions bitmask
 
     @property
     def is_periodic(self) -> bool:
@@ -196,7 +433,7 @@ class TransferSet:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
-        return {
+        result = {
             "name": self.name,
             "domain": self.domain,
             "data_set": self.data_set,
@@ -205,6 +442,11 @@ class TransferSet:
             "buffer_time": self.buffer_time,
             "integrity_time": self.integrity_time,
         }
+        if self.conditions:
+            result["conditions"] = self.conditions.to_dict()
+        if self.start_time:
+            result["start_time"] = self.start_time.isoformat()
+        return result
 
 
 @dataclass
