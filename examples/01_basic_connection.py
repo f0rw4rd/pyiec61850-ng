@@ -3,7 +3,7 @@
 Basic IEC 61850 Connection Example
 
 This example demonstrates how to establish a connection to an IEC 61850 server
-and handle connection errors properly.
+using the safe MMSClient wrapper that handles memory management automatically.
 
 Usage:
     python 01_basic_connection.py <server_ip>
@@ -11,42 +11,9 @@ Usage:
 """
 
 import sys
-import pyiec61850.pyiec61850 as pyiec61850
 
-
-def connect_to_server(hostname, port=102):
-    """
-    Establish connection to IEC 61850 server
-    
-    Args:
-        hostname: IP address or hostname of the IEC 61850 server
-        port: Port number (default 102)
-    
-    Returns:
-        connection object or None if failed
-    """
-    print(f"Connecting to IEC 61850 server at {hostname}:{port}")
-    
-    # Create IED connection object
-    connection = pyiec61850.IedConnection_create()
-    
-    if not connection:
-        print("ERROR: Failed to create connection object")
-        return None
-    
-    # Attempt to connect
-    error = pyiec61850.IedConnection_connect(connection, hostname, port)
-    
-    if error != pyiec61850.IED_ERROR_OK:
-        error_msg = pyiec61850.IedClientError_toString(error)
-        print(f"ERROR: Connection failed - {error_msg} (code: {error})")
-        
-        # Clean up
-        pyiec61850.IedConnection_destroy(connection)
-        return None
-    
-    print("SUCCESS: Connected to IEC 61850 server")
-    return connection
+# Use the safe MMS client
+from pyiec61850.mms import MMSClient, ConnectionFailedError
 
 
 def main():
@@ -56,30 +23,38 @@ def main():
         print(f"Example: {sys.argv[0]} 192.168.1.100")
         print(f"Example: {sys.argv[0]} localhost 10102")
         sys.exit(1)
-    
+
     hostname = sys.argv[1]
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 102
-    
-    # Connect to server
-    connection = connect_to_server(hostname, port)
-    
-    if connection:
+
+    # Use context manager for automatic cleanup
+    # This ensures connection is properly closed even if an error occurs
+    with MMSClient() as client:
         try:
+            print(f"Connecting to IEC 61850 server at {hostname}:{port}")
+            client.connect(hostname, port)
+            print("SUCCESS: Connected to IEC 61850 server")
+
+            # Get server identity
+            identity = client.get_server_identity()
+            if identity.vendor or identity.model:
+                print(f"\nServer Identity:")
+                print(f"  Vendor: {identity.vendor}")
+                print(f"  Model: {identity.model}")
+                print(f"  Revision: {identity.revision}")
+
             print("\nConnection established successfully!")
             print("You can now perform IEC 61850 operations...")
-            
+
             # In a real application, you would perform operations here
             # For example: discover devices, read values, etc.
-            
-        finally:
-            # Always close and clean up the connection
-            print("\nClosing connection...")
-            pyiec61850.IedConnection_close(connection)
-            pyiec61850.IedConnection_destroy(connection)
-            print("Connection closed")
-    else:
-        print("\nFailed to establish connection")
-        sys.exit(1)
+
+        except ConnectionFailedError as e:
+            print(f"ERROR: {e}")
+            sys.exit(1)
+
+    # Connection is automatically closed when exiting the context manager
+    print("\nConnection closed")
 
 
 if __name__ == "__main__":

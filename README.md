@@ -36,7 +36,36 @@ pip install pyiec61850-ng-*.whl
 
 ## Usage
 
-### Quick Start
+### Quick Start (Recommended - Safe API)
+
+```python
+from pyiec61850.mms import MMSClient
+
+# Use context manager for automatic cleanup
+with MMSClient() as client:
+    client.connect("192.168.1.100", 102)
+    print("Connected successfully!")
+
+    # Get server identity
+    identity = client.get_server_identity()
+    print(f"Server: {identity.vendor} {identity.model}")
+
+    # Discover logical devices
+    devices = client.get_logical_devices()
+    for device in devices:
+        print(f"Device: {device}")
+
+        # Get logical nodes
+        nodes = client.get_logical_nodes(device)
+        for node in nodes:
+            print(f"  Node: {node}")
+
+# Connection automatically closed
+```
+
+### Low-Level API
+
+For advanced use cases, you can use the raw bindings directly:
 
 ```python
 import pyiec61850.pyiec61850 as pyiec61850
@@ -100,7 +129,9 @@ python version.py        # Package version: 1.6.0.1
 python version.py --libiec61850  # libiec61850 version: v1.6.0
 ```
 
-## TASE.2/ICCP Support
+## TASE.2/ICCP Support (Highly Experimental)
+
+> **Warning**: TASE.2 support is highly experimental and may change significantly.
 
 pyiec61850-ng includes support for TASE.2 (IEC 60870-6), also known as ICCP
 (Inter-Control Center Communications Protocol), used for real-time data exchange
@@ -154,5 +185,59 @@ from pyiec61850.tase2 import (
     BilateralTable,  # Access control table
     ServerInfo,      # Server information
 )
+```
+
+## MMS Module (Safe Wrappers)
+
+The `pyiec61850.mms` module provides safe Python wrappers around the raw SWIG bindings,
+preventing common crashes from NULL pointer dereferences and memory leaks.
+
+### Why Use the Safe Wrappers?
+
+The raw pyiec61850 bindings require careful memory management:
+- `LinkedList_destroy()` must be called after iteration
+- `MmsValue_delete()` must be called after reading values
+- `toCharP()` crashes on NULL pointers
+
+The MMS module handles all of this automatically.
+
+### MMS Client Example
+
+```python
+from pyiec61850.mms import MMSClient, ConnectionFailedError
+
+with MMSClient() as client:
+    try:
+        client.connect("192.168.1.100", 102)
+
+        # All memory management is automatic
+        for device in client.get_logical_devices():
+            for node in client.get_logical_nodes(device):
+                print(f"{device}/{node}")
+
+    except ConnectionFailedError as e:
+        print(f"Connection failed: {e}")
+```
+
+### Safe Utilities for Raw Bindings
+
+If you need to use raw bindings, use the safe utilities:
+
+```python
+from pyiec61850.mms.utils import (
+    safe_to_char_p,        # NULL-safe string conversion
+    LinkedListGuard,       # Auto-cleanup context manager
+    MmsValueGuard,         # Auto-cleanup for MmsValue
+)
+import pyiec61850.pyiec61850 as iec61850
+
+# Safe iteration with automatic cleanup
+result = iec61850.IedConnection_getLogicalDeviceList(connection)
+device_list, error = result
+
+with LinkedListGuard(device_list) as guard:
+    for device_name in guard:  # NULL pointers automatically skipped
+        print(device_name)
+# LinkedList automatically destroyed
 ```
 
