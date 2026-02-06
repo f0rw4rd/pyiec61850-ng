@@ -241,3 +241,15 @@ with LinkedListGuard(device_list) as guard:
 # LinkedList automatically destroyed
 ```
 
+## License
+
+This project is licensed under the **GNU General Public License v3.0 (GPLv3)** - see the [LICENSE](LICENSE) file for details.
+
+### Third-Party Components
+
+- **libiec61850** by [MZ Automation GmbH](https://www.mz-automation.de/) - GPLv3 (commercial license available)
+- **Mbed TLS** - Apache License 2.0
+
+The compiled `libiec61850.so` and SWIG bindings included in wheel distributions are built from the [libiec61850](https://github.com/mz-automation/libiec61850) source code. See the [NOTICE](NOTICE) file for full attribution details.
+
+For commercial use cases where GPLv3 is not suitable, a commercial license for libiec61850 is available from [MZ Automation GmbH](https://www.mz-automation.de/communication-protocols/iec-61850-702/).

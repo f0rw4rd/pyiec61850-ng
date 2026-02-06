@@ -27,3 +27,6 @@ dist/*
 # Ignore temporary files
 .DS_Store
 *~
+
+# Claude Code
+CLAUDE.md

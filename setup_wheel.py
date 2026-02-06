@@ -30,6 +30,7 @@ setup(
     package_data={
         "pyiec61850": ["*.so", "*.py", "lib*.so*"],
     },
+    data_files=[("", ["LICENSE", "NOTICE"])],
     include_package_data=True,
     classifiers=[
         "Development Status :: 4 - Beta",

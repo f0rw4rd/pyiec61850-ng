@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "pyiec61850-ng"
 dynamic = ["version", "description", "readme"]
 requires-python = ">=3.8"
-license = {text = "GPLv3"}
+license = {file = "LICENSE"}
 authors = [
     { name = "f0rw4rd", email = "pyiec61850@example.com" }
 ]

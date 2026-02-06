@@ -1,0 +1,33 @@
+pyiec61850-ng
+Copyright 2024 f0rw4rd
+
+This product includes software developed by third parties.
+
+===============================================================================
+libiec61850 - IEC 61850 Protocol Library
+===============================================================================
+
+Copyright 2013-2024 Michael Zillgith / MZ Automation GmbH
+https://github.com/mz-automation/libiec61850
+
+Licensed under the GNU General Public License v3.0 (GPLv3).
+See LICENSE file for the full license text.
+
+The compiled shared library (libiec61850.so) and SWIG bindings
+(_pyiec61850.so) included in this distribution are built from the
+libiec61850 source code. The corresponding source is available at:
+https://github.com/mz-automation/libiec61850
+
+A commercial license for libiec61850 is available from MZ Automation GmbH
+for use cases where GPLv3 obligations are not suitable:
+https://www.mz-automation.de/communication-protocols/iec-61850-702/
+
+===============================================================================
+Mbed TLS (formerly PolarSSL)
+===============================================================================
+
+Copyright The Mbed TLS Contributors
+https://github.com/Mbed-TLS/mbedtls
+
+Licensed under the Apache License, Version 2.0.
+Used by libiec61850 for TLS support.

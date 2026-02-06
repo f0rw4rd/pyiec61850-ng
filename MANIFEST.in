@@ -1,5 +1,6 @@
 include README.md
 include LICENSE
+include NOTICE
 include CLAUDE.md
 recursive-include patches *.patch
 recursive-include tests *.py

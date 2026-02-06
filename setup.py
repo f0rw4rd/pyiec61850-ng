@@ -115,6 +115,7 @@ setup(
     package_data={
         "pyiec61850": ["*.so", "*.py", "lib*.so*"],
     },
+    data_files=[("", ["LICENSE", "NOTICE"])],
     keywords="iec61850 mms goose iec-61850 power-systems substation-automation smart-grid scada",
     project_urls={
         "Bug Reports": "https://github.com/f0rw4rd/pyiec61850-ng/issues",
