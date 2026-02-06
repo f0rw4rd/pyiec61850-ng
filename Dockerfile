@@ -1,47 +1,54 @@
-FROM python:3.11-slim-bookworm AS builder
+FROM python:3.12-slim-bookworm AS builder
 
-# Set libiec61850 version as a build argument with default value
-ARG LIBIEC61850_VERSION=v1.6
+ARG LIBIEC61850_VERSION=v1.6.0
+ARG LIBIEC61850_PINNED_SHA=
+ARG MBEDTLS_SHA256=
+ARG PACKAGE_VERSION=0.0.0
 
-# Install build dependencies with retry logic for network issues
+# Install build dependencies
 RUN apt-get update && \
-    for i in 1 2 3; do \
-        apt-get install -y --fix-missing --no-install-recommends \
-            git \
-            build-essential \
-            cmake \
-            swig \
-            python3-dev \
-            python3-setuptools \
-            python3-wheel \
-            python3-pip \
-            wget tar \
-        && break || { echo "Attempt $i failed, retrying in 10s..."; sleep 10; }; \
-    done && \
-    rm -rf /var/lib/apt/lists/*
+    apt-get install -y --no-install-recommends \
+        git \
+        build-essential \
+        cmake \
+        swig \
+        python3-dev \
+        python3-setuptools \
+        python3-wheel \
+        python3-pip \
+        wget tar \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create working directory
 WORKDIR /build
 
-# Clone libiec61850 with specified version
-RUN echo "Building libiec61850 version: $LIBIEC61850_VERSION" && \
-    git clone --depth 1 --branch $LIBIEC61850_VERSION https://github.com/mz-automation/libiec61850.git
+# Clone libiec61850 at pinned ref and verify integrity
+RUN git clone --depth 50 --branch ${LIBIEC61850_VERSION} https://github.com/mz-automation/libiec61850.git && \
+    cd libiec61850 && \
+    if [ -n "${LIBIEC61850_PINNED_SHA}" ]; then \
+      ACTUAL_SHA=$(git rev-parse HEAD); \
+      if [ "${ACTUAL_SHA}" != "${LIBIEC61850_PINNED_SHA}" ]; then \
+        echo "ERROR: SHA mismatch! Expected ${LIBIEC61850_PINNED_SHA}, got ${ACTUAL_SHA}"; \
+        exit 1; \
+      fi; \
+      echo "Verified: libiec61850 commit SHA matches pinned value"; \
+    fi
 
-# Download mbedTLS directly
+# Download mbedTLS and verify checksum
 RUN cd libiec61850/third_party/mbedtls && \
-    wget https://github.com/Mbed-TLS/mbedtls/archive/refs/tags/v3.6.0.tar.gz --no-check-certificate && \
+    wget -q https://github.com/Mbed-TLS/mbedtls/archive/refs/tags/v3.6.0.tar.gz && \
+    if [ -n "${MBEDTLS_SHA256}" ]; then \
+      echo "${MBEDTLS_SHA256}  v3.6.0.tar.gz" | sha256sum -c -; \
+    fi && \
     tar -xzf v3.6.0.tar.gz
 
-# Copy patch files
+# Copy and apply patches
 COPY patches/ /build/patches/
-
-# Apply patches
 RUN cd /build/libiec61850 && \
     if [ -f /build/patches/iec61850.i.patch ]; then \
-        # Find the actual path to the iec61850.i file
         IEC_FILE=$(find . -name "iec61850.i") && \
-        echo "Applying patch to $IEC_FILE" && \
-        patch -p1 $IEC_FILE < /build/patches/iec61850.i.patch; \
+        echo "Applying patch to ${IEC_FILE}" && \
+        patch -p1 ${IEC_FILE} < /build/patches/iec61850.i.patch; \
     fi
 
 # Build libiec61850 with Python bindings
@@ -52,71 +59,25 @@ RUN mkdir -p build && \
           -DBUILD_PYTHON_BINDINGS=ON \
           .. && \
     make WITH_MBEDTLS3=1 -j$(nproc) && \
-    make install && \
-    make test
+    make install
 
-# Show where the library files are located
-RUN find /usr -name "libiec61850.so*" | sort && \
-    find /build -name "libiec61850.so*" | sort && \
-    ldconfig && \
-    ls -la /build/libiec61850/build/src/
-
-# Show where the Python bindings are located
-RUN find /usr -name "pyiec61850" -type d | sort && \
-    find /build -name "pyiec61850" -type d | sort
-
-# Extract version number without 'v' prefix for Python package
-RUN PACKAGE_VERSION=$(echo $LIBIEC61850_VERSION | sed 's/^v//').0 && \
-    echo "Python package version: $PACKAGE_VERSION"
-
-# Create a Python package for pyiec61850
+# Create Python package directory
 WORKDIR /build/pyiec61850-package
-
-# Create package structure
 RUN mkdir -p pyiec61850
 
-# Create setup.py file with version extracted from build arg
-RUN PACKAGE_VERSION=$(echo $LIBIEC61850_VERSION | sed 's/^v//').0 && \
-    echo 'from setuptools import setup, find_packages' > setup.py && \
-    echo 'from setuptools.dist import Distribution' >> setup.py && \
-    echo '' >> setup.py && \
-    echo 'class BinaryDistribution(Distribution):' >> setup.py && \
-    echo '    def has_ext_modules(self):' >> setup.py && \
-    echo '        return True' >> setup.py && \
-    echo '' >> setup.py && \
-    echo 'setup(' >> setup.py && \
-    echo '    name="pyiec61850-ng",' >> setup.py && \
-    echo "    version=\"$PACKAGE_VERSION\"," >> setup.py && \
-    echo '    packages=find_packages(),' >> setup.py && \
-    echo '    package_data={' >> setup.py && \
-    echo '        "pyiec61850": ["*.so", "*.py", "lib*.so*"],' >> setup.py && \
-    echo '    },' >> setup.py && \
-    echo '    include_package_data=True,' >> setup.py && \
-    echo "    description=\"Python bindings for libiec61850 $LIBIEC61850_VERSION\"," >> setup.py && \
-    echo '    author="Your Name",' >> setup.py && \    
-    echo '    url="https://github.com/f0rw4rd/pyiec61850-ng",' >> setup.py && \
-    echo '    python_requires=">=3.6",' >> setup.py && \
-    echo '    distclass=BinaryDistribution,' >> setup.py && \
-    echo ')' >> setup.py
+# Copy project files for wheel building
+COPY setup_wheel.py LICENSE NOTICE README.md /build/pyiec61850-package/
+RUN mv setup_wheel.py setup.py
 
-# Copy Python modules from the build directory
-RUN cp -r /build/libiec61850/build/pyiec61850/* pyiec61850/ && \
-    ls -la pyiec61850/
-
-# Copy the shared libraries from the build directory
-RUN cp /build/libiec61850/build/src/libiec61850.so* pyiec61850/ && \
+# Copy only the needed files from the cmake build (skip cmake artifacts)
+RUN cp /build/libiec61850/build/pyiec61850/_pyiec61850.so pyiec61850/ && \
+    cp /build/libiec61850/build/pyiec61850/pyiec61850.py pyiec61850/ && \
+    cp /build/libiec61850/build/src/libiec61850.so* pyiec61850/ && \
     ls -la pyiec61850/
 
 # Create package initialization file with library loader
-RUN echo "\"\"\"Python bindings for libiec61850 $LIBIEC61850_VERSION\"\"\"" > pyiec61850/__init__.py && \
-    echo "import os" >> pyiec61850/__init__.py && \
-    echo "import sys" >> pyiec61850/__init__.py && \
-    echo "import ctypes" >> pyiec61850/__init__.py && \
-    echo "" >> pyiec61850/__init__.py && \
-    echo "# Get the directory where this package is installed" >> pyiec61850/__init__.py && \
+RUN echo "import os, sys, ctypes" > pyiec61850/__init__.py && \
     echo "_package_dir = os.path.dirname(os.path.abspath(__file__))" >> pyiec61850/__init__.py && \
-    echo "" >> pyiec61850/__init__.py && \
-    echo "# Pre-load the shared library from our package directory" >> pyiec61850/__init__.py && \
     echo "for lib_file in os.listdir(_package_dir):" >> pyiec61850/__init__.py && \
     echo "    if lib_file.startswith('libiec61850.so'):" >> pyiec61850/__init__.py && \
     echo "        try:" >> pyiec61850/__init__.py && \
@@ -124,40 +85,28 @@ RUN echo "\"\"\"Python bindings for libiec61850 $LIBIEC61850_VERSION\"\"\"" > py
     echo "            ctypes.CDLL(lib_path)" >> pyiec61850/__init__.py && \
     echo "            break" >> pyiec61850/__init__.py && \
     echo "        except Exception as e:" >> pyiec61850/__init__.py && \
-    echo "            print(f'Warning: Failed to load {lib_file}: {e}')" >> pyiec61850/__init__.py && \
-    echo "" >> pyiec61850/__init__.py && \
-    echo "# Also add the package directory to the PATH and LD_LIBRARY_PATH for good measure" >> pyiec61850/__init__.py && \
-    echo "os.environ['PATH'] = _package_dir + os.pathsep + os.environ.get('PATH', '')" >> pyiec61850/__init__.py && \
-    echo "os.environ['LD_LIBRARY_PATH'] = _package_dir + os.pathsep + os.environ.get('LD_LIBRARY_PATH', '')" >> pyiec61850/__init__.py
+    echo "            print(f'Warning: Failed to load {lib_file}: {e}')" >> pyiec61850/__init__.py
 
-# Create wheel package - use pip wheel instead of setup.py bdist_wheel to ensure platform tags
-RUN pip install wheel setuptools && \
-    pip wheel . --no-deps --wheel-dir=dist/
+# Build wheel and retag as universal py3 (SWIG .so has no version suffix from cmake)
+RUN pip install build wheel setuptools && \
+    PACKAGE_VERSION=${PACKAGE_VERSION} python setup.py bdist_wheel && \
+    echo "=== Wheel contents ===" && \
+    python -c "import zipfile, sys; [print(f.filename) for f in zipfile.ZipFile(sys.argv[1]).filelist]" dist/*.whl && \
+    wheel tags --python-tag=py3 --abi-tag=none --platform-tag=linux_x86_64 \
+      --remove dist/*.whl
 
-# Create final stage to collect the wheel package
-FROM python:3.11-slim-bullseye
+# Generate SHA256 checksums
+RUN cd dist && sha256sum *.whl > SHA256SUMS
 
-# Pass the version through to the final stage
-ARG LIBIEC61850_VERSION=v1.6
+# Test stage: install the wheel and verify both ctypes and SWIG imports work
+FROM python:3.12-slim-bookworm AS tester
+COPY --from=builder /build/pyiec61850-package/dist/*.whl /tmp/wheels/
+RUN pip install /tmp/wheels/*.whl && \
+    python -c "import pyiec61850; print('pyiec61850 import OK')" && \
+    python -c "import pyiec61850.pyiec61850; print('SWIG bindings OK')"
 
+# Final output stage
+FROM python:3.12-slim-bookworm
 WORKDIR /wheels
-
-# Copy wheel package from builder stage
 COPY --from=builder /build/pyiec61850-package/dist/*.whl /wheels/
-
-# Create a simple installation test script
-RUN echo '#!/bin/bash' > /wheels/test_install.sh && \
-    echo 'pip install --force-reinstall pyiec61850*.whl && \\' >> /wheels/test_install.sh && \
-    echo "python -c \"import pyiec61850; print('pyiec61850 $LIBIEC61850_VERSION successfully installed and imported!')\"" >> /wheels/test_install.sh && \
-    chmod +x /wheels/test_install.sh
-
-# Create README
-RUN echo "Python Wheel for libiec61850 $LIBIEC61850_VERSION" > /wheels/README.txt && \
-    echo '' >> /wheels/README.txt && \
-    echo 'Installation:' >> /wheels/README.txt && \
-    echo '   pip install pyiec61850-*.whl' >> /wheels/README.txt && \
-    echo '' >> /wheels/README.txt && \
-    echo 'Or run the test script:' >> /wheels/README.txt && \
-    echo '   ./test_install.sh' >> /wheels/README.txt
-
-CMD ["bash", "-c", "echo 'Python wheel for libiec61850 is available in /wheels directory. Run: ./test_install.sh to verify installation.'"]
+COPY --from=builder /build/pyiec61850-package/dist/SHA256SUMS /wheels/

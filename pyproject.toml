@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pyiec61850-ng"
 dynamic = ["version", "description", "readme"]
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 license = {file = "LICENSE"}
 authors = [
     { name = "f0rw4rd", email = "pyiec61850@example.com" }
@@ -33,12 +33,12 @@ classifiers = [
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Python :: Implementation :: CPython",
 ]
 
@@ -47,22 +47,3 @@ Homepage = "https://github.com/f0rw4rd/pyiec61850-ng"
 Documentation = "https://github.com/f0rw4rd/pyiec61850-ng#readme"
 Repository = "https://github.com/f0rw4rd/pyiec61850-ng"
 Issues = "https://github.com/f0rw4rd/pyiec61850-ng/issues"
-
-[tool.cibuildwheel]
-# Build for these Python versions
-build = ["cp36-*", "cp37-*", "cp38-*", "cp39-*", "cp310-*", "cp311-*", "cp312-*", "cp313-*"]
-
-# Skip 32-bit builds and platforms we don't support yet
-skip = ["*-win32", "*-manylinux_i686", "*-musllinux*", "pp*"]
-
-# Only build for x86_64 on Linux for now
-archs = ["x86_64"]
-
-# Environment variables
-environment = { LIBIEC61850_VERSION = "v1.6" }
-
-# Use our custom Docker build process for Linux
-before-build = "python setup.py build_ext"
-
-# Test that the wheel works
-test-command = "python -c 'import pyiec61850; print(\"Import successful\")'"
