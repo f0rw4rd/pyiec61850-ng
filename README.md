@@ -1,5 +1,7 @@
 # pyiec61850-ng
 
+> **This library is experimental. Use at your own risk. No warranty of any kind is provided.**
+
 Next Generation Python bindings for libiec61850, packaged as a Python wheel.
 
 [![Build and Test](https://github.com/f0rw4rd/pyiec61850-ng/actions/workflows/build-wheel.yml/badge.svg)](https://github.com/f0rw4rd/pyiec61850-ng/actions/workflows/build-wheel.yml)

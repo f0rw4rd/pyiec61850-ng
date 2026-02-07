@@ -1,43 +1,23 @@
 #!/usr/bin/env python3
 """
-TASE.2/ICCP Protocol Support for pyiec61850-ng (IEC 60870-6)
+TASE.2/ICCP Protocol Support for pyiec61850-ng
 
-This module provides Python bindings for TASE.2 (Telecontrol Application
-Service Element 2), also known as ICCP (Inter-Control Center Communications
-Protocol). TASE.2 is used for real-time data exchange between control
-centers in the electric utility industry.
+Python bindings for TASE.2 (ICCP), used for real-time data exchange
+between control centers in the electric utility industry.
 
 Example:
     >>> from pyiec61850.tase2 import TASE2Client
-    >>>
     >>> client = TASE2Client(
     ...     local_ap_title="1.1.1.999",
     ...     remote_ap_title="1.1.1.998"
     ... )
     >>> client.connect("192.168.1.100", port=102)
-    >>>
-    >>> # Discover domains
     >>> domains = client.get_domains()
-    >>> for domain in domains:
-    ...     print(f"Domain: {domain.name} (VCC: {domain.is_vcc})")
-    >>>
-    >>> # Read a data point
     >>> value = client.read_point("ICC1", "Voltage")
-    >>> print(f"Voltage: {value.value} (Quality: {value.quality})")
-    >>>
     >>> client.disconnect()
-
-Features:
-    - Domain (VCC/ICC) discovery
-    - Variable enumeration
-    - Data point reading with quality
-    - Data point writing
-    - Transfer set management (Block 2)
-    - Device control operations (Block 5)
-    - Bilateral table queries
 """
 
-__version__ = "0.1.0"
+__version__ = "0.4.0"
 __author__ = "f0rw4rd"
 __license__ = "GPL-3.0"
 
@@ -58,17 +38,27 @@ from .types import (
     ControlPoint,
     DataSet,
     TransferSet,
+    DSTransferSetConfig,
+    TransferReport,
+    SBOState,
     BilateralTable,
     ServerInfo,
+    ServerAddress,
     Association,
+    InformationMessage,
+    IMTransferSetConfig,
+    InformationBuffer,
+    TagState,
+    ClientStatistics,
 )
 
 # Constants
 from .constants import (
     # Defaults
     DEFAULT_PORT,
+    DEFAULT_TLS_PORT,
     DEFAULT_TIMEOUT,
-    # Point types (IEC 60870-6 compliant)
+    # Point types
     POINT_TYPE_STATE,
     POINT_TYPE_STATE_SUPPLEMENTAL,
     POINT_TYPE_DISCRETE,
@@ -81,6 +71,10 @@ from .constants import (
     POINT_TYPE_STATE_SUPPLEMENTAL_Q_TIMETAG,
     POINT_TYPE_DISCRETE_Q_TIMETAG,
     POINT_TYPE_REAL_Q_TIMETAG,
+    POINT_TYPE_STATE_Q_TIMETAG_EXTENDED,
+    POINT_TYPE_STATE_SUPPLEMENTAL_Q_TIMETAG_EXTENDED,
+    POINT_TYPE_DISCRETE_Q_TIMETAG_EXTENDED,
+    POINT_TYPE_REAL_Q_TIMETAG_EXTENDED,
     POINT_TYPE_STATE_EXTENDED,
     POINT_TYPE_STATE_SUPPLEMENTAL_EXTENDED,
     POINT_TYPE_DISCRETE_EXTENDED,
@@ -111,6 +105,10 @@ from .constants import (
     BLOCK_3,
     BLOCK_4,
     BLOCK_5,
+    BLOCK_6,
+    BLOCK_7,
+    BLOCK_8,
+    BLOCK_9,
     CONFORMANCE_BLOCKS,
     # Quality flags (bitmask)
     QUALITY_VALIDITY_VALID,
@@ -130,6 +128,7 @@ from .constants import (
     QUALITY_SUSPECT,
     # DS Conditions
     DS_CONDITIONS_INTERVAL,
+    DS_CONDITIONS_INTEGRITY,
     DS_CONDITIONS_CHANGE,
     DS_CONDITIONS_OPERATOR_REQUEST,
     DS_CONDITIONS_EXTERNAL_EVENT,
@@ -153,6 +152,9 @@ from .constants import (
     TAG_OPEN_AND_CLOSE_INHIBIT,
     TAG_CLOSE_ONLY_INHIBIT,
     TAG_NONE,
+    TAG_INVALID,
+    TAG_STATE_IDLE,
+    TAG_STATE_ARMED,
     # Client states
     STATE_DISCONNECTED,
     STATE_CONNECTING,
@@ -166,6 +168,75 @@ from .constants import (
     MAX_DATA_SET_SIZE,
     SBO_TIMEOUT,
     MAX_POINT_NAME_LENGTH,
+    # State check interval
+    STATE_CHECK_INTERVAL,
+    # Standard TASE.2 named variables
+    BILATERAL_TABLE_ID_VAR,
+    SUPPORTED_FEATURES_VAR,
+    TASE2_VERSION_VAR,
+    TRANSFER_SET_NAME_VAR,
+    DSTS_VAR_DATA_SET_NAME,
+    DSTS_VAR_START_TIME,
+    DSTS_VAR_INTERVAL,
+    DSTS_VAR_TLE,
+    DSTS_VAR_BUFFER_TIME,
+    DSTS_VAR_INTEGRITY_CHECK,
+    DSTS_VAR_DS_CONDITIONS,
+    DSTS_VAR_BLOCK_DATA,
+    DSTS_VAR_CRITICAL,
+    DSTS_VAR_RBE,
+    DSTS_VAR_ALL_CHANGES_REPORTED,
+    DSTS_VAR_STATUS,
+    DSTS_VAR_EVENT_CODE_REQUESTED,
+    TRANSFER_REPORT_ACK,
+    TRANSFER_REPORT_NACK,
+    NEXT_DS_TRANSFER_SET,
+    DS_CONDITIONS_DETECTED,
+    TRANSFER_SET_TIMESTAMP,
+    # Supported features
+    SUPPORTED_FEATURES_BLOCK_1,
+    SUPPORTED_FEATURES_BLOCK_2,
+    SUPPORTED_FEATURES_BLOCK_3,
+    SUPPORTED_FEATURES_BLOCK_4,
+    SUPPORTED_FEATURES_BLOCK_5,
+    SUPPORTED_FEATURES_BLOCK_6,
+    SUPPORTED_FEATURES_BLOCK_7,
+    SUPPORTED_FEATURES_BLOCK_8,
+    SUPPORTED_FEATURES_BLOCK_9,
+    # Block 4: Information Messages
+    IMTS_VAR_NAME,
+    IMTS_VAR_STATUS,
+    INFO_BUFF_VAR_NAME,
+    INFO_BUFF_VAR_SIZE,
+    INFO_BUFF_VAR_NEXT_ENTRY,
+    INFO_BUFF_VAR_ENTRIES,
+    INFO_MSG_VAR_INFO_REF,
+    INFO_MSG_VAR_LOCAL_REF,
+    INFO_MSG_VAR_MSG_ID,
+    INFO_MSG_VAR_CONTENT,
+    MAX_INFO_MESSAGE_SIZE,
+    DEFAULT_INFO_BUFFER_SIZE,
+    # TASE.2 Editions
+    TASE2_EDITION_1996,
+    TASE2_EDITION_2000,
+    TASE2_EDITION_AUTO,
+    # Tag variable names
+    TAG_VAR_SUFFIX,
+    TAG_REASON_VAR_SUFFIX,
+    # File download limits
+    MAX_FILE_DOWNLOAD_SIZE,
+    # Transfer set chain limit
+    MAX_TRANSFER_SET_CHAIN,
+    # Failover configuration
+    DEFAULT_FAILOVER_RETRY_COUNT,
+    DEFAULT_FAILOVER_DELAY,
+    SERVER_PRIORITY_PRIMARY,
+    SERVER_PRIORITY_BACKUP,
+    # Consecutive error tracking
+    DEFAULT_MAX_CONSECUTIVE_ERRORS,
+    # Transfer set metadata
+    TRANSFER_SET_METADATA_MEMBERS,
+    TRANSFER_SET_METADATA_OFFSET,
 )
 
 # Exceptions
@@ -209,6 +280,10 @@ from .exceptions import (
     OperateError,
     TagError,
     DeviceBlockedError,
+    # Information messages (Block 4)
+    InformationMessageError,
+    IMTransferSetError,
+    IMNotSupportedError,
     # Transfer sets
     TransferSetError,
     RBENotSupportedError,
@@ -218,6 +293,8 @@ from .exceptions import (
     ServiceError,
     RejectError,
     AbortError,
+    # Error mapping utility
+    map_ied_error,
 )
 
 __all__ = [
@@ -240,11 +317,21 @@ __all__ = [
     "ControlPoint",
     "DataSet",
     "TransferSet",
+    "DSTransferSetConfig",
+    "TransferReport",
+    "SBOState",
     "BilateralTable",
     "ServerInfo",
     "Association",
+    "InformationMessage",
+    "IMTransferSetConfig",
+    "InformationBuffer",
+    "TagState",
+    "ClientStatistics",
+    "ServerAddress",
     # Constants
     "DEFAULT_PORT",
+    "DEFAULT_TLS_PORT",
     "DEFAULT_TIMEOUT",
     "POINT_TYPES",
     "CONTROL_TYPES",
@@ -273,6 +360,7 @@ __all__ = [
     "QUALITY_SUSPECT",
     # DS Conditions
     "DS_CONDITIONS_INTERVAL",
+    "DS_CONDITIONS_INTEGRITY",
     "DS_CONDITIONS_CHANGE",
     "DS_CONDITIONS_OPERATOR_REQUEST",
     "DS_CONDITIONS_EXTERNAL_EVENT",
@@ -286,6 +374,10 @@ __all__ = [
     "BLOCK_3",
     "BLOCK_4",
     "BLOCK_5",
+    "BLOCK_6",
+    "BLOCK_7",
+    "BLOCK_8",
+    "BLOCK_9",
     # Client states
     "STATE_DISCONNECTED",
     "STATE_CONNECTING",
@@ -298,6 +390,77 @@ __all__ = [
     "MAX_DATA_SET_SIZE",
     "SBO_TIMEOUT",
     "MAX_POINT_NAME_LENGTH",
+    # State check interval
+    "STATE_CHECK_INTERVAL",
+    # Standard TASE.2 named variables
+    "BILATERAL_TABLE_ID_VAR",
+    "SUPPORTED_FEATURES_VAR",
+    "TASE2_VERSION_VAR",
+    "TRANSFER_SET_NAME_VAR",
+    "DSTS_VAR_DATA_SET_NAME",
+    "DSTS_VAR_START_TIME",
+    "DSTS_VAR_INTERVAL",
+    "DSTS_VAR_TLE",
+    "DSTS_VAR_BUFFER_TIME",
+    "DSTS_VAR_INTEGRITY_CHECK",
+    "DSTS_VAR_DS_CONDITIONS",
+    "DSTS_VAR_BLOCK_DATA",
+    "DSTS_VAR_CRITICAL",
+    "DSTS_VAR_RBE",
+    "DSTS_VAR_ALL_CHANGES_REPORTED",
+    "DSTS_VAR_STATUS",
+    "DSTS_VAR_EVENT_CODE_REQUESTED",
+    "TRANSFER_REPORT_ACK",
+    "TRANSFER_REPORT_NACK",
+    "NEXT_DS_TRANSFER_SET",
+    "DS_CONDITIONS_DETECTED",
+    "TRANSFER_SET_TIMESTAMP",
+    # Supported features
+    "SUPPORTED_FEATURES_BLOCK_1",
+    "SUPPORTED_FEATURES_BLOCK_2",
+    "SUPPORTED_FEATURES_BLOCK_3",
+    "SUPPORTED_FEATURES_BLOCK_4",
+    "SUPPORTED_FEATURES_BLOCK_5",
+    "SUPPORTED_FEATURES_BLOCK_6",
+    "SUPPORTED_FEATURES_BLOCK_7",
+    "SUPPORTED_FEATURES_BLOCK_8",
+    "SUPPORTED_FEATURES_BLOCK_9",
+    # Block 4: Information Messages
+    "IMTS_VAR_NAME",
+    "IMTS_VAR_STATUS",
+    "INFO_BUFF_VAR_NAME",
+    "INFO_BUFF_VAR_SIZE",
+    "INFO_BUFF_VAR_NEXT_ENTRY",
+    "INFO_BUFF_VAR_ENTRIES",
+    "INFO_MSG_VAR_INFO_REF",
+    "INFO_MSG_VAR_LOCAL_REF",
+    "INFO_MSG_VAR_MSG_ID",
+    "INFO_MSG_VAR_CONTENT",
+    "MAX_INFO_MESSAGE_SIZE",
+    "DEFAULT_INFO_BUFFER_SIZE",
+    # TASE.2 Editions
+    "TASE2_EDITION_1996",
+    "TASE2_EDITION_2000",
+    "TASE2_EDITION_AUTO",
+    # Tag variable names
+    "TAG_STATE_IDLE",
+    "TAG_STATE_ARMED",
+    "TAG_VAR_SUFFIX",
+    "TAG_REASON_VAR_SUFFIX",
+    # File download limits
+    "MAX_FILE_DOWNLOAD_SIZE",
+    # Transfer set chain limit
+    "MAX_TRANSFER_SET_CHAIN",
+    # Failover configuration
+    "DEFAULT_FAILOVER_RETRY_COUNT",
+    "DEFAULT_FAILOVER_DELAY",
+    "SERVER_PRIORITY_PRIMARY",
+    "SERVER_PRIORITY_BACKUP",
+    # Consecutive error tracking
+    "DEFAULT_MAX_CONSECUTIVE_ERRORS",
+    # Transfer set metadata
+    "TRANSFER_SET_METADATA_MEMBERS",
+    "TRANSFER_SET_METADATA_OFFSET",
     # Exceptions
     "TASE2Error",
     "LibraryError",
@@ -331,6 +494,9 @@ __all__ = [
     "OperateError",
     "TagError",
     "DeviceBlockedError",
+    "InformationMessageError",
+    "IMTransferSetError",
+    "IMNotSupportedError",
     "TransferSetError",
     "RBENotSupportedError",
     "TransferSetConfigError",
@@ -338,4 +504,5 @@ __all__ = [
     "ServiceError",
     "RejectError",
     "AbortError",
+    "map_ied_error",
 ]
