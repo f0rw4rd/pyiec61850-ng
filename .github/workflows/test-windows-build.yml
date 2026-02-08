@@ -109,26 +109,23 @@ jobs:
           cd libiec61850/build
 
           # libiec61850's CMakeLists.txt uses find_package(Python), not find_package(Python3).
-          # The runner has multiple Python versions; we must force CMake to use the correct one.
+          # The runner has multiple Python versions pre-installed. We force the correct one
+          # by setting Python_ROOT_DIR and putting our Python first on PATH.
           $python_root = Split-Path (Get-Command python).Source
           $python_exe = (Get-Command python).Source
-          $python_lib = python -c "import sysconfig, os; print(os.path.join(sysconfig.get_config_var('installed_base'), 'libs'))"
 
           Write-Host "Python root: $python_root"
           Write-Host "Python executable: $python_exe"
-          Write-Host "Python lib dir: $python_lib"
-          Write-Host "Python lib dir contents:"
-          Get-ChildItem $python_lib -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  $($_.Name)" }
           python --version
+
+          # Prepend our Python to PATH so CMake finds it first
+          $env:PATH = "$python_root;$env:PATH"
 
           cmake .. `
             -DBUILD_PYTHON_BINDINGS=ON `
             -DCMAKE_BUILD_TYPE=Release `
             -DPython_ROOT_DIR="$python_root" `
-            -DPython_EXECUTABLE="$python_exe" `
-            -DPython_LIBRARY="$python_lib" `
             -DPython_FIND_STRATEGY=LOCATION `
-            -DCMAKE_LIBRARY_PATH="$python_lib" `
             -G "NMake Makefiles"
 
       - name: Build
