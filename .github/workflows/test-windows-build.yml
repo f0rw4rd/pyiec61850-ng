@@ -20,6 +20,7 @@ permissions:
 env:
   LIBIEC61850_PINNED_SHA: '519b0208cc79d1af09d5ca40fb9ad1fd93822e93'
   MBEDTLS_SHA256: '32c500e73ee878e193e7d66bf5e4c34fb42bb968a6c9f9488aa466b16f6f3bff'
+  NPCAP_SDK_SHA256: 'f0a8be7778ee3ae1b99bbbecb27a3ff0f6c111a4093f1c78c5c5a099607184db'
 
 jobs:
   build-windows:
@@ -108,6 +109,15 @@ jobs:
           # Npcap SDK provides WinPcap-compatible headers and import libs.
           # Only needed for compilation — no driver install required on CI.
           Invoke-WebRequest -Uri "https://npcap.com/dist/npcap-sdk-1.16.zip" -OutFile npcap-sdk.zip
+
+          # Verify integrity
+          $hash = (Get-FileHash -Path npcap-sdk.zip -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne "${{ env.NPCAP_SDK_SHA256 }}") {
+            Write-Error "Npcap SDK SHA256 mismatch! Expected ${{ env.NPCAP_SDK_SHA256 }}, got $hash"
+            exit 1
+          }
+          Write-Host "Npcap SDK checksum verified"
+
           Expand-Archive -Path npcap-sdk.zip -DestinationPath npcap-sdk-temp
 
           # libiec61850 expects third_party/winpcap/{Include,Lib}
