@@ -288,15 +288,17 @@ jobs:
           $initContent = @'
           import os, sys, ctypes
           _package_dir = os.path.dirname(os.path.abspath(__file__))
+          # Must store the handle — GC removes the dir from search path
+          _dll_dir_handle = None
           if sys.platform == 'win32' and hasattr(os, 'add_dll_directory'):
-              os.add_dll_directory(_package_dir)
-          for _f in os.listdir(_package_dir):
+              _dll_dir_handle = os.add_dll_directory(_package_dir)
+          for _f in sorted(os.listdir(_package_dir)):
               if _f.endswith('.dll') and 'iec61850' in _f.lower():
                   try:
                       ctypes.CDLL(os.path.join(_package_dir, _f))
                       break
-                  except Exception:
-                      pass
+                  except Exception as _e:
+                      print(f'Warning: Failed to load {_f}: {_e}')
           '@
           Set-Content -Path "$pkgdir/__init__.py" -Value $initContent -Encoding utf8
 
