@@ -288,17 +288,26 @@ jobs:
           $initContent = @'
           import os, sys, ctypes
           _package_dir = os.path.dirname(os.path.abspath(__file__))
-          # Must store the handle — GC removes the dir from search path
           _dll_dir_handle = None
-          if sys.platform == 'win32' and hasattr(os, 'add_dll_directory'):
-              _dll_dir_handle = os.add_dll_directory(_package_dir)
-          for _f in sorted(os.listdir(_package_dir)):
-              if _f.endswith('.dll') and 'iec61850' in _f.lower():
-                  try:
-                      ctypes.CDLL(os.path.join(_package_dir, _f))
-                      break
-                  except Exception as _e:
-                      print(f'Warning: Failed to load {_f}: {_e}')
+          if sys.platform == 'win32':
+              if hasattr(os, 'add_dll_directory'):
+                  _dll_dir_handle = os.add_dll_directory(_package_dir)
+              os.environ['PATH'] = _package_dir + os.pathsep + os.environ.get('PATH', '')
+              for _f in sorted(os.listdir(_package_dir)):
+                  if _f.endswith('.dll') and 'iec61850' in _f.lower():
+                      try:
+                          ctypes.WinDLL(os.path.join(_package_dir, _f), winmode=0)
+                          break
+                      except Exception as _e:
+                          print(f'Warning: Failed to load {_f}: {_e}')
+          else:
+              for _f in os.listdir(_package_dir):
+                  if _f.startswith('libiec61850.so'):
+                      try:
+                          ctypes.CDLL(os.path.join(_package_dir, _f))
+                          break
+                      except Exception:
+                          pass
           '@
           Set-Content -Path "$pkgdir/__init__.py" -Value $initContent -Encoding utf8
 
@@ -342,6 +351,19 @@ jobs:
           Get-ChildItem "$staging/dist/*.whl" | ForEach-Object {
             Write-Host "$($_.Length)`t$($_.Name)"
             python -c "import zipfile,sys;[print(f'  {f.filename}') for f in zipfile.ZipFile(sys.argv[1]).filelist]" $_.FullName
+          }
+
+      - name: Show DLL dependencies
+        run: |
+          Write-Host "=== _pyiec61850.pyd dependencies ==="
+          dumpbin /dependents libiec61850/build/pyiec61850/_pyiec61850.pyd 2>&1 |
+            Select-String -Pattern "\.dll" -CaseSensitive:$false
+          $iec_dll = Get-ChildItem -Path libiec61850/build -Recurse -Filter "iec61850.dll" | Select-Object -First 1
+          if ($iec_dll) {
+            Write-Host ""
+            Write-Host "=== iec61850.dll dependencies ==="
+            dumpbin /dependents $iec_dll.FullName 2>&1 |
+              Select-String -Pattern "\.dll" -CaseSensitive:$false
           }
 
       - name: Test wheel install
