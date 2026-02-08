@@ -179,11 +179,15 @@ jobs:
           # Persist for subsequent steps (each run: block is a new shell)
           "LIB=$python_libs;$env:LIB" >> $env:GITHUB_ENV
 
+          # Delay-load wpcap.dll so iec61850.dll can be loaded without Npcap installed.
+          # GOOSE functions will fail at call-time if Npcap is missing, but all other
+          # functionality works. delayimp.lib provides the delay-load helper.
           cmake .. `
             -DBUILD_PYTHON_BINDINGS=ON `
             -DCMAKE_BUILD_TYPE=Release `
             -DPython_ROOT_DIR="$python_root" `
             -DPython_FIND_STRATEGY=LOCATION `
+            -DCMAKE_SHARED_LINKER_FLAGS="/DELAYLOAD:wpcap.dll delayimp.lib" `
             -G "NMake Makefiles"
 
       - name: Build
