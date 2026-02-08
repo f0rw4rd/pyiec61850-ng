@@ -1,0 +1,239 @@
+# EXPERIMENTAL: Test Windows wheel build for pyiec61850-ng
+#
+# This workflow validates that libiec61850 + SWIG Python bindings can compile
+# on Windows with MSVC. It does NOT release or publish anything.
+#
+# The Linux build produces a universal .so that works across Python versions,
+# but Windows .pyd files link to version-specific pythonXY.dll, so we need
+# one build per Python version.
+#
+# Status: experimental — expect failures, this is for feasibility testing.
+
+name: Test Windows Build (experimental)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  LIBIEC61850_PINNED_SHA: '519b0208cc79d1af09d5ca40fb9ad1fd93822e93'
+  MBEDTLS_SHA256: '32c500e73ee878e193e7d66bf5e4c34fb42bb968a6c9f9488aa466b16f6f3bff'
+
+jobs:
+  build-windows:
+    name: Windows build (Python ${{ matrix.python-version }})
+    runs-on: windows-2022
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # MSVC environment is needed for CMake to find the compiler.
+      # windows-2022 has MSVC 2022 (v143) pre-installed.
+      - name: Activate MSVC developer environment
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756  # v1.13.0
+
+      - name: Show tool versions
+        run: |
+          Write-Host "=== Python ==="
+          python --version
+          python -c "import sysconfig; print('Include:', sysconfig.get_path('include')); print('Libs:', sysconfig.get_config_var('LIBDIR') or 'N/A')"
+
+          Write-Host "=== CMake ==="
+          cmake --version
+
+          Write-Host "=== SWIG ==="
+          swig -version
+
+          Write-Host "=== MSVC ==="
+          cl 2>&1 | Select-Object -First 3
+
+      - name: Clone libiec61850 v1.6.0
+        run: |
+          git clone --depth 50 --branch v1.6.0 https://github.com/mz-automation/libiec61850.git
+          cd libiec61850
+          $actual_sha = git rev-parse HEAD
+          if ($actual_sha -ne "${{ env.LIBIEC61850_PINNED_SHA }}") {
+            Write-Error "SHA mismatch! Expected ${{ env.LIBIEC61850_PINNED_SHA }}, got $actual_sha"
+            exit 1
+          }
+          Write-Host "Verified: libiec61850 commit SHA matches pinned value"
+
+      - name: Download and extract mbedTLS v3.6.0
+        run: |
+          $mbedtls_dir = "libiec61850/third_party/mbedtls"
+          $tarball = "$mbedtls_dir/v3.6.0.tar.gz"
+
+          # Download
+          Invoke-WebRequest -Uri "https://github.com/Mbed-TLS/mbedtls/archive/refs/tags/v3.6.0.tar.gz" -OutFile $tarball
+
+          # Verify SHA256
+          $hash = (Get-FileHash -Path $tarball -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne "${{ env.MBEDTLS_SHA256 }}") {
+            Write-Error "mbedTLS SHA256 mismatch! Expected ${{ env.MBEDTLS_SHA256 }}, got $hash"
+            exit 1
+          }
+          Write-Host "mbedTLS checksum verified"
+
+          # Extract
+          tar -xzf $tarball -C $mbedtls_dir
+          Get-ChildItem $mbedtls_dir
+
+      - name: Apply SWIG interface patch
+        shell: bash
+        run: |
+          # Find the iec61850.i file in the cloned repo (same approach as Dockerfile)
+          IEC_FILE=$(find libiec61850 -name "iec61850.i")
+          if [ -z "$IEC_FILE" ]; then
+            echo "ERROR: Could not find iec61850.i in libiec61850"
+            exit 1
+          fi
+          echo "Found SWIG file: $IEC_FILE"
+
+          # Apply patch (using bash shell — Git for Windows includes patch)
+          patch -p1 "$IEC_FILE" < patches/iec61850.i.patch
+          echo "Patch applied successfully"
+
+      - name: Configure CMake
+        run: |
+          mkdir libiec61850/build
+          cd libiec61850/build
+
+          # On Windows, CMake needs to find Python. We pass hints explicitly.
+          $python_exe = (Get-Command python).Source
+          $python_include = python -c "import sysconfig; print(sysconfig.get_path('include'))"
+          $python_libs = python -c "import sysconfig, os; print(os.path.dirname(sysconfig.get_config_var('LIBDIR') or sysconfig.get_path('stdlib')))"
+
+          Write-Host "Python executable: $python_exe"
+          Write-Host "Python include: $python_include"
+          Write-Host "Python libs dir: $python_libs"
+
+          cmake .. `
+            -DBUILD_PYTHON_BINDINGS=ON `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DPython3_EXECUTABLE="$python_exe" `
+            -G "NMake Makefiles"
+
+      - name: Build
+        run: |
+          cd libiec61850/build
+
+          # Build with MSVC via NMake
+          # WITH_MBEDTLS3=1 is a make variable, not relevant for NMake;
+          # CMake should auto-detect mbedTLS from third_party/
+          nmake
+
+      - name: List build outputs
+        run: |
+          Write-Host "=== Full build tree (DLLs, PYDs, LIBs) ==="
+          Get-ChildItem -Path libiec61850/build -Recurse -Include *.dll,*.pyd,*.lib,*.exp,*.so,*.py |
+            ForEach-Object { Write-Host $_.FullName }
+
+          Write-Host ""
+          Write-Host "=== Python bindings directory ==="
+          $pydir = "libiec61850/build/pyiec61850"
+          if (Test-Path $pydir) {
+            Get-ChildItem -Path $pydir -Recurse | ForEach-Object { Write-Host "$($_.Length)`t$($_.FullName)" }
+          } else {
+            Write-Host "pyiec61850 build directory not found — checking alternative locations..."
+            Get-ChildItem -Path libiec61850/build -Recurse -Filter "*pyiec61850*" |
+              ForEach-Object { Write-Host $_.FullName }
+          }
+
+          Write-Host ""
+          Write-Host "=== Main library ==="
+          Get-ChildItem -Path libiec61850/build -Recurse -Filter "iec61850*" -Include *.dll,*.lib |
+            ForEach-Object { Write-Host "$($_.Length)`t$($_.FullName)" }
+
+      - name: Test import
+        run: |
+          $pydir = "libiec61850/build/pyiec61850"
+
+          # The build should produce _pyiec61850.pyd and pyiec61850.py (SWIG wrapper).
+          # We also need the main iec61850.dll on PATH or in the same directory.
+
+          # Find and copy the main DLL next to the .pyd so it can be loaded
+          $main_dll = Get-ChildItem -Path libiec61850/build -Recurse -Filter "iec61850.dll" | Select-Object -First 1
+          if ($main_dll) {
+            Copy-Item $main_dll.FullName -Destination $pydir/ -ErrorAction SilentlyContinue
+            Write-Host "Copied $($main_dll.Name) to $pydir"
+          }
+
+          # Also try libiec61850.dll
+          $lib_dll = Get-ChildItem -Path libiec61850/build -Recurse -Filter "libiec61850.dll" | Select-Object -First 1
+          if ($lib_dll) {
+            Copy-Item $lib_dll.FullName -Destination $pydir/ -ErrorAction SilentlyContinue
+            Write-Host "Copied $($lib_dll.Name) to $pydir"
+          }
+
+          # List what we have
+          Write-Host "=== Files in $pydir ==="
+          Get-ChildItem $pydir -ErrorAction SilentlyContinue |
+            ForEach-Object { Write-Host "$($_.Length)`t$($_.Name)" }
+
+          # Attempt the import
+          Write-Host ""
+          Write-Host "=== Testing Python import ==="
+          $env:PYTHONPATH = "$pydir;$env:PYTHONPATH"
+          python -c @"
+          import sys, os
+          print(f'Python {sys.version}')
+          print(f'PYTHONPATH: {os.environ.get("PYTHONPATH", "not set")}')
+          try:
+              import pyiec61850
+              print('SUCCESS: pyiec61850 SWIG bindings imported')
+              # Try a simple attribute access to verify the module is functional
+              print(f'Module file: {pyiec61850.__file__}')
+          except ImportError as e:
+              print(f'IMPORT ERROR: {e}')
+              # This is expected to fail on first attempts — that's what we're testing
+              sys.exit(1)
+          except Exception as e:
+              print(f'OTHER ERROR: {type(e).__name__}: {e}')
+              sys.exit(1)
+          "@
+
+      - name: Collect build artifacts
+        if: always()
+        run: |
+          $out = "windows-build-output"
+          New-Item -ItemType Directory -Force -Path $out | Out-Null
+
+          # Copy everything potentially useful from the build
+          $extensions = @("*.pyd", "*.dll", "*.lib", "*.py")
+          foreach ($ext in $extensions) {
+            Get-ChildItem -Path libiec61850/build -Recurse -Filter $ext |
+              Where-Object { $_.DirectoryName -notmatch "CMakeFiles" } |
+              ForEach-Object {
+                # Flatten into output dir with path info in filename
+                $relative = $_.FullName.Replace("$PWD\libiec61850\build\", "").Replace("\", "_")
+                Copy-Item $_.FullName -Destination "$out/$relative" -ErrorAction SilentlyContinue
+              }
+          }
+
+          # Also grab CMake cache for debugging
+          Copy-Item libiec61850/build/CMakeCache.txt -Destination "$out/" -ErrorAction SilentlyContinue
+
+          Write-Host "=== Collected artifacts ==="
+          Get-ChildItem $out | ForEach-Object { Write-Host "$($_.Length)`t$($_.Name)" }
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: windows-build-py${{ matrix.python-version }}
+          path: windows-build-output/
+          retention-days: 14
