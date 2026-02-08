@@ -118,8 +118,16 @@ jobs:
           Write-Host "Python executable: $python_exe"
           python --version
 
-          # Prepend our Python to PATH so CMake finds it first
+          # Prepend our Python to PATH so CMake finds it first.
+          # Add Python libs dir to LIB so the MSVC linker finds pythonXY.lib.
+          # NMake generator doesn't propagate FindPython's library path to link.exe.
+          $python_libs = Join-Path $python_root "libs"
           $env:PATH = "$python_root;$env:PATH"
+          $env:LIB = "$python_libs;$env:LIB"
+          Write-Host "Added to LIB: $python_libs"
+
+          # Persist for subsequent steps (each run: block is a new shell)
+          "LIB=$python_libs;$env:LIB" >> $env:GITHUB_ENV
 
           cmake .. `
             -DBUILD_PYTHON_BINDINGS=ON `
@@ -131,10 +139,6 @@ jobs:
       - name: Build
         run: |
           cd libiec61850/build
-
-          # Build with MSVC via NMake
-          # WITH_MBEDTLS3=1 is a make variable, not relevant for NMake;
-          # CMake should auto-detect mbedTLS from third_party/
           nmake
 
       - name: List build outputs
