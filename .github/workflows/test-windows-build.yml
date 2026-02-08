@@ -112,19 +112,22 @@ jobs:
           mkdir libiec61850/build
           cd libiec61850/build
 
-          # On Windows, CMake needs to find Python. We pass hints explicitly.
+          # libiec61850's CMakeLists.txt uses find_package(Python), not find_package(Python3).
+          # The runner has multiple Python versions; we must force CMake to use the correct one.
+          # Python_ROOT_DIR + FIND_STRATEGY=LOCATION ensures CMake searches our version first.
+          $python_root = Split-Path (Get-Command python).Source
           $python_exe = (Get-Command python).Source
-          $python_include = python -c "import sysconfig; print(sysconfig.get_path('include'))"
-          $python_libs = python -c "import sysconfig, os; print(os.path.dirname(sysconfig.get_config_var('LIBDIR') or sysconfig.get_path('stdlib')))"
 
+          Write-Host "Python root: $python_root"
           Write-Host "Python executable: $python_exe"
-          Write-Host "Python include: $python_include"
-          Write-Host "Python libs dir: $python_libs"
+          python --version
 
           cmake .. `
             -DBUILD_PYTHON_BINDINGS=ON `
             -DCMAKE_BUILD_TYPE=Release `
-            -DPython3_EXECUTABLE="$python_exe" `
+            -DPython_ROOT_DIR="$python_root" `
+            -DPython_EXECUTABLE="$python_exe" `
+            -DPython_FIND_STRATEGY=LOCATION `
             -G "NMake Makefiles"
 
       - name: Build
