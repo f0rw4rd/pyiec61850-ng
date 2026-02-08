@@ -23,23 +23,19 @@ env:
 
 jobs:
   build-windows:
-    name: Windows build (Python ${{ matrix.python-version }})
+    name: Windows build (Python 3.12)
     runs-on: windows-2022
     permissions:
       contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.12"]
 
     steps:
       - name: Checkout code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python 3.12
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
 
       # MSVC environment is needed for CMake to find the compiler.
       # windows-2022 has MSVC 2022 (v143) pre-installed.
@@ -114,12 +110,15 @@ jobs:
 
           # libiec61850's CMakeLists.txt uses find_package(Python), not find_package(Python3).
           # The runner has multiple Python versions; we must force CMake to use the correct one.
-          # Python_ROOT_DIR + FIND_STRATEGY=LOCATION ensures CMake searches our version first.
           $python_root = Split-Path (Get-Command python).Source
           $python_exe = (Get-Command python).Source
+          $python_lib = python -c "import sysconfig, os; print(os.path.join(sysconfig.get_config_var('installed_base'), 'libs'))"
 
           Write-Host "Python root: $python_root"
           Write-Host "Python executable: $python_exe"
+          Write-Host "Python lib dir: $python_lib"
+          Write-Host "Python lib dir contents:"
+          Get-ChildItem $python_lib -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  $($_.Name)" }
           python --version
 
           cmake .. `
@@ -127,7 +126,9 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release `
             -DPython_ROOT_DIR="$python_root" `
             -DPython_EXECUTABLE="$python_exe" `
+            -DPython_LIBRARY="$python_lib" `
             -DPython_FIND_STRATEGY=LOCATION `
+            -DCMAKE_LIBRARY_PATH="$python_lib" `
             -G "NMake Makefiles"
 
       - name: Build
@@ -237,6 +238,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
-          name: windows-build-py${{ matrix.python-version }}
+          name: windows-build-py3.12
           path: windows-build-output/
           retention-days: 14
