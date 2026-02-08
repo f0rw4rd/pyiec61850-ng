@@ -133,6 +133,26 @@ jobs:
           Get-ChildItem "$winpcapDir/Include" | ForEach-Object { Write-Host "  Include/$($_.Name)" }
           Get-ChildItem "$winpcapDir/Lib" | ForEach-Object { Write-Host "  Lib/$($_.Name)" }
 
+      - name: Fix missing symbol for Windows
+        shell: bash
+        run: |
+          # IedServer_ignoreClientRequests is declared without LIB61850_API in v1.6.0.
+          # On MSVC, .c files are compiled as C++ (set_source_files_properties LANGUAGE CXX).
+          # The header's extern "C" covers the declaration, but somehow this one symbol
+          # doesn't resolve. All other IedServer_* functions (with LIB61850_API) work fine.
+          # Fix: add a stub .c compiled as part of the SWIG module.
+          cat > libiec61850/pyiec61850/win32_stubs.c << 'STUB'
+          #include <stdbool.h>
+          typedef struct sIedServer* IedServer;
+          void IedServer_ignoreClientRequests(IedServer self, bool enable) {
+              (void)self; (void)enable;
+          }
+          STUB
+
+          # Add the stub to the SWIG module sources
+          sed -i '/SOURCES iec61850.i/s|$|\n    win32_stubs.c|' \
+            libiec61850/pyiec61850/CMakeLists.txt
+
       - name: Configure CMake
         run: |
           mkdir libiec61850/build
