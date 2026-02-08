@@ -261,6 +261,104 @@ jobs:
               sys.exit(1)
           "@
 
+      - name: Package wheel
+        run: |
+          $pydir = "libiec61850/build/pyiec61850"
+          $staging = "wheel-staging"
+          $pkgdir = "$staging/pyiec61850"
+
+          # Create package directory
+          New-Item -ItemType Directory -Force -Path $pkgdir | Out-Null
+
+          # Copy SWIG build outputs
+          Copy-Item "$pydir/_pyiec61850.pyd" -Destination $pkgdir/
+          Copy-Item "$pydir/pyiec61850.py" -Destination $pkgdir/
+
+          # Copy DLLs the .pyd may need at runtime
+          foreach ($pattern in @("iec61850.dll", "libiec61850.dll")) {
+            $dll = Get-ChildItem -Path libiec61850/build -Recurse -Filter $pattern |
+              Select-Object -First 1
+            if ($dll) {
+              Copy-Item $dll.FullName -Destination $pkgdir/
+              Write-Host "Included: $($dll.Name)"
+            }
+          }
+
+          # Create __init__.py with Windows DLL loader
+          $initContent = @'
+          import os, sys, ctypes
+          _package_dir = os.path.dirname(os.path.abspath(__file__))
+          if sys.platform == 'win32' and hasattr(os, 'add_dll_directory'):
+              os.add_dll_directory(_package_dir)
+          for _f in os.listdir(_package_dir):
+              if _f.endswith('.dll') and 'iec61850' in _f.lower():
+                  try:
+                      ctypes.CDLL(os.path.join(_package_dir, _f))
+                      break
+                  except Exception:
+                      pass
+          '@
+          Set-Content -Path "$pkgdir/__init__.py" -Value $initContent -Encoding utf8
+
+          # Copy project metadata
+          Copy-Item LICENSE -Destination $staging/
+          Copy-Item NOTICE -Destination $staging/
+          Copy-Item README.md -Destination $staging/
+
+          # Create Windows-specific setup.py (package_data differs from Linux)
+          $setupContent = @'
+          import os
+          from setuptools import setup, find_packages
+          from setuptools.dist import Distribution
+          version = os.environ.get('PACKAGE_VERSION', '1.6.0.9')
+          class BinaryDistribution(Distribution):
+              def has_ext_modules(self):
+                  return True
+          setup(
+              name='pyiec61850-ng',
+              version=version,
+              description='Python bindings for libiec61850',
+              packages=find_packages(),
+              package_data={'pyiec61850': ['*.pyd', '*.dll', '*.py']},
+              include_package_data=True,
+              distclass=BinaryDistribution,
+          )
+          '@
+          Set-Content -Path "$staging/setup.py" -Value $setupContent -Encoding utf8
+
+          # Get version and build wheel
+          $version = python version.py
+          Write-Host "Building wheel version: $version"
+          pip install setuptools wheel
+          Push-Location $staging
+          $env:PACKAGE_VERSION = $version
+          python setup.py bdist_wheel
+          Pop-Location
+
+          # Show result
+          Write-Host "=== Built wheel ==="
+          Get-ChildItem "$staging/dist/*.whl" | ForEach-Object {
+            Write-Host "$($_.Length)`t$($_.Name)"
+            python -c "import zipfile,sys;[print(f'  {f.filename}') for f in zipfile.ZipFile(sys.argv[1]).filelist]" $_.FullName
+          }
+
+      - name: Test wheel install
+        run: |
+          python -m venv test-venv
+          $wheel = (Get-ChildItem "wheel-staging/dist/*.whl")[0]
+          Write-Host "Installing: $($wheel.Name)"
+
+          & test-venv/Scripts/pip.exe install $wheel.FullName
+
+          Write-Host "=== Testing import from installed wheel ==="
+          & test-venv/Scripts/python.exe -c @'
+          import pyiec61850
+          print(f'Package dir: {pyiec61850._package_dir}')
+          from pyiec61850 import pyiec61850 as swig_mod
+          print(f'SWIG module: {swig_mod.__file__}')
+          print('SUCCESS: Wheel import works')
+          '@
+
       - name: Collect build artifacts
         if: always()
         run: |
@@ -291,4 +389,13 @@ jobs:
         with:
           name: windows-build-py3.12
           path: windows-build-output/
+          retention-days: 14
+
+      - name: Upload wheel
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: windows-wheel-py3.12
+          path: wheel-staging/dist/*.whl
+          if-no-files-found: warn
           retention-days: 14
