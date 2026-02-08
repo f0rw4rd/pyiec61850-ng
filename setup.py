@@ -113,7 +113,13 @@ setup(
         Extension(name="dummy", sources=["dummy.c"]),
     ],
     package_data={
-        "pyiec61850": ["*.so", "*.py", "lib*.so*"],
+        "pyiec61850": ["*.so", "*.py", "lib*.so*", "*.pyd", "*.dll"],
+        "pyiec61850._pyinstaller": ["*.py"],
+    },
+    entry_points={
+        "pyinstaller40": [
+            "hook-dirs = pyiec61850._pyinstaller:get_hook_dirs",
+        ],
     },
     data_files=[("", ["LICENSE", "NOTICE"])],
     keywords="iec61850 mms goose iec-61850 power-systems substation-automation smart-grid scada",

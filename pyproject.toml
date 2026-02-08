@@ -42,6 +42,9 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
 ]
 
+[project.entry-points."pyinstaller40"]
+hook-dirs = "pyiec61850._pyinstaller:get_hook_dirs"
+
 [project.urls]
 Homepage = "https://github.com/f0rw4rd/pyiec61850-ng"
 Documentation = "https://github.com/f0rw4rd/pyiec61850-ng#readme"
