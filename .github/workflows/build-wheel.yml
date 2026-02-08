@@ -325,7 +325,16 @@ jobs:
             }
           }
 
-          # Create __init__.py with Windows DLL loader
+          # Copy pure-Python submodules from the repo
+          foreach ($submod in @("mms", "tase2", "_pyinstaller")) {
+            $src = "pyiec61850/$submod"
+            if (Test-Path $src) {
+              Copy-Item $src -Destination $pkgdir/ -Recurse
+              Write-Host "Included submodule: $submod"
+            }
+          }
+
+          # Create __init__.py with Windows DLL loader + submodule imports
           $initContent = @'
           import os, sys, ctypes
           _package_dir = os.path.dirname(os.path.abspath(__file__))
@@ -349,6 +358,15 @@ jobs:
                           break
                       except Exception:
                           pass
+          try:
+              from . import tase2
+          except ImportError:
+              pass
+          try:
+              from . import mms
+          except ImportError:
+              pass
+          __all__ = ['tase2', 'mms']
           '@
           Set-Content -Path "$pkgdir/__init__.py" -Value $initContent -Encoding utf8
 
@@ -372,6 +390,11 @@ jobs:
               description='Python bindings for libiec61850',
               packages=find_packages(),
               package_data={'pyiec61850': ['*.pyd', '*.dll', '*.py']},
+              entry_points={
+                  'pyinstaller40': [
+                      'hook-dirs = pyiec61850._pyinstaller:get_hook_dirs',
+                  ],
+              },
               include_package_data=True,
               distclass=BinaryDistribution,
           )
@@ -412,6 +435,10 @@ jobs:
           print(f'Package dir: {pyiec61850._package_dir}')
           from pyiec61850 import pyiec61850 as swig_mod
           print(f'SWIG module: {swig_mod.__file__}')
+          from pyiec61850 import tase2
+          print(f'tase2 version: {tase2.__version__}')
+          from pyiec61850 import mms
+          print(f'mms version: {mms.__version__}')
           print('SUCCESS: Wheel import works')
           '@
           Pop-Location
@@ -464,6 +491,10 @@ jobs:
           print(f'Package dir: {pyiec61850._package_dir}')
           from pyiec61850 import pyiec61850 as swig_mod
           print(f'SWIG module: {swig_mod.__file__}')
+          from pyiec61850 import tase2
+          print(f'tase2 version: {tase2.__version__}')
+          from pyiec61850 import mms
+          print(f'mms version: {mms.__version__}')
           print('SUCCESS: Wheel import works')
           '@
 
