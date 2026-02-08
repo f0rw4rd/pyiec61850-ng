@@ -103,6 +103,26 @@ jobs:
           patch -p1 "$IEC_FILE" < patches/iec61850.i.patch
           echo "Patch applied successfully"
 
+      - name: Download Npcap SDK
+        run: |
+          # Npcap SDK provides WinPcap-compatible headers and import libs.
+          # Only needed for compilation — no driver install required on CI.
+          Invoke-WebRequest -Uri "https://npcap.com/dist/npcap-sdk-1.16.zip" -OutFile npcap-sdk.zip
+          Expand-Archive -Path npcap-sdk.zip -DestinationPath npcap-sdk-temp
+
+          # libiec61850 expects third_party/winpcap/{Include,Lib}
+          $winpcapDir = "libiec61850/third_party/winpcap"
+          New-Item -ItemType Directory -Force -Path "$winpcapDir/Include" | Out-Null
+          New-Item -ItemType Directory -Force -Path "$winpcapDir/Lib" | Out-Null
+
+          Copy-Item -Path "npcap-sdk-temp/Include/*" -Destination "$winpcapDir/Include/" -Recurse -Force
+          # Use x64 libs (README says: replace Lib files with Lib/x64 on 64-bit)
+          Copy-Item -Path "npcap-sdk-temp/Lib/x64/*" -Destination "$winpcapDir/Lib/" -Force
+
+          Write-Host "Npcap SDK installed:"
+          Get-ChildItem "$winpcapDir/Include" | ForEach-Object { Write-Host "  Include/$($_.Name)" }
+          Get-ChildItem "$winpcapDir/Lib" | ForEach-Object { Write-Host "  Lib/$($_.Name)" }
+
       - name: Configure CMake
         run: |
           mkdir libiec61850/build
