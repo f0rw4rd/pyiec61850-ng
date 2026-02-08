@@ -350,14 +350,19 @@ jobs:
 
           & test-venv/Scripts/pip.exe install $wheel.FullName
 
+          # Run import test from a temp directory to avoid the repo's pyiec61850/
+          # directory shadowing the installed wheel (CWD is on sys.path).
+          $venvPython = (Resolve-Path "test-venv/Scripts/python.exe").Path
+          Push-Location $env:TEMP
           Write-Host "=== Testing import from installed wheel ==="
-          & test-venv/Scripts/python.exe -c @'
+          & $venvPython -c @'
           import pyiec61850
           print(f'Package dir: {pyiec61850._package_dir}')
           from pyiec61850 import pyiec61850 as swig_mod
           print(f'SWIG module: {swig_mod.__file__}')
           print('SUCCESS: Wheel import works')
           '@
+          Pop-Location
 
       - name: Collect build artifacts
         if: always()
