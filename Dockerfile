@@ -69,23 +69,57 @@ RUN mkdir -p pyiec61850
 COPY setup_wheel.py LICENSE NOTICE README.md /build/pyiec61850-package/
 RUN mv setup_wheel.py setup.py
 
-# Copy only the needed files from the cmake build (skip cmake artifacts)
+# Copy pure-Python subpackages from repo source
+COPY pyiec61850/ /build/repo-pyiec61850/
+
+# Copy SWIG build artifacts (compiled C extension + shared library)
 RUN cp /build/libiec61850/build/pyiec61850/_pyiec61850.so pyiec61850/ && \
     cp /build/libiec61850/build/pyiec61850/pyiec61850.py pyiec61850/ && \
-    cp /build/libiec61850/build/src/libiec61850.so* pyiec61850/ && \
+    cp /build/libiec61850/build/src/libiec61850.so* pyiec61850/
+
+# Copy pure-Python subpackages alongside the compiled extension
+RUN for subpkg in mms tase2 goose sv server _pyinstaller; do \
+        if [ -d /build/repo-pyiec61850/$subpkg ]; then \
+            cp -r /build/repo-pyiec61850/$subpkg pyiec61850/$subpkg && \
+            find pyiec61850/$subpkg -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; \
+            echo "Included subpackage: $subpkg"; \
+        fi; \
+    done && \
     ls -la pyiec61850/
 
-# Create package initialization file with library loader
-RUN echo "import os, sys, ctypes" > pyiec61850/__init__.py && \
-    echo "_package_dir = os.path.dirname(os.path.abspath(__file__))" >> pyiec61850/__init__.py && \
-    echo "for lib_file in os.listdir(_package_dir):" >> pyiec61850/__init__.py && \
-    echo "    if lib_file.startswith('libiec61850.so'):" >> pyiec61850/__init__.py && \
-    echo "        try:" >> pyiec61850/__init__.py && \
-    echo "            lib_path = os.path.join(_package_dir, lib_file)" >> pyiec61850/__init__.py && \
-    echo "            ctypes.CDLL(lib_path)" >> pyiec61850/__init__.py && \
-    echo "            break" >> pyiec61850/__init__.py && \
-    echo "        except Exception as e:" >> pyiec61850/__init__.py && \
-    echo "            print(f'Warning: Failed to load {lib_file}: {e}')" >> pyiec61850/__init__.py
+# Create __init__.py: load C library first, then import submodules
+RUN cat > pyiec61850/__init__.py << 'INITEOF'
+import os, sys, ctypes
+_package_dir = os.path.dirname(os.path.abspath(__file__))
+for _f in os.listdir(_package_dir):
+    if _f.startswith('libiec61850.so'):
+        try:
+            ctypes.CDLL(os.path.join(_package_dir, _f))
+            break
+        except Exception as _e:
+            print(f'Warning: Failed to load {_f}: {_e}')
+try:
+    from . import tase2
+except ImportError:
+    pass
+try:
+    from . import mms
+except ImportError:
+    pass
+try:
+    from . import goose
+except ImportError:
+    pass
+try:
+    from . import sv
+except ImportError:
+    pass
+try:
+    from . import server
+except ImportError:
+    pass
+__all__ = ['tase2', 'mms', 'goose', 'sv', 'server']
+INITEOF
 
 # Build wheel and retag as universal py3 (SWIG .so has no version suffix from cmake)
 RUN pip install build wheel setuptools && \
@@ -103,7 +137,12 @@ FROM python:3.12-slim-bookworm AS tester
 COPY --from=builder /build/pyiec61850-package/dist/*.whl /tmp/wheels/
 RUN pip install /tmp/wheels/*.whl && \
     python -c "import pyiec61850; print('pyiec61850 import OK')" && \
-    python -c "import pyiec61850.pyiec61850; print('SWIG bindings OK')"
+    python -c "import pyiec61850.pyiec61850; print('SWIG bindings OK')" && \
+    python -c "from pyiec61850 import mms; print(f'mms {mms.__version__} OK')" && \
+    python -c "from pyiec61850 import tase2; print(f'tase2 {tase2.__version__} OK')" && \
+    python -c "from pyiec61850 import goose; print(f'goose {goose.__version__} OK')" && \
+    python -c "from pyiec61850 import sv; print(f'sv {sv.__version__} OK')" && \
+    python -c "from pyiec61850 import server; print(f'server {server.__version__} OK')"
 
 # Final output stage
 FROM python:3.12-slim-bookworm

@@ -28,7 +28,13 @@ setup(
     url="https://github.com/f0rw4rd/pyiec61850-ng",
     packages=find_packages(),
     package_data={
-        "pyiec61850": ["*.so", "*.py", "lib*.so*"],
+        "pyiec61850": ["*.so", "*.py", "lib*.so*", "*.pyd", "*.dll"],
+        "pyiec61850._pyinstaller": ["*.py"],
+    },
+    entry_points={
+        "pyinstaller40": [
+            "hook-dirs = pyiec61850._pyinstaller:get_hook_dirs",
+        ],
     },
     data_files=[("", ["LICENSE", "NOTICE"])],
     include_package_data=True,

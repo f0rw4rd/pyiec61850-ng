@@ -326,7 +326,7 @@ jobs:
           }
 
           # Copy pure-Python submodules from the repo
-          foreach ($submod in @("mms", "tase2", "_pyinstaller")) {
+          foreach ($submod in @("mms", "tase2", "goose", "sv", "server", "_pyinstaller")) {
             $src = "pyiec61850/$submod"
             if (Test-Path $src) {
               Copy-Item $src -Destination $pkgdir/ -Recurse
@@ -366,7 +366,19 @@ jobs:
               from . import mms
           except ImportError:
               pass
-          __all__ = ['tase2', 'mms']
+          try:
+              from . import goose
+          except ImportError:
+              pass
+          try:
+              from . import sv
+          except ImportError:
+              pass
+          try:
+              from . import server
+          except ImportError:
+              pass
+          __all__ = ['tase2', 'mms', 'goose', 'sv', 'server']
           '@
           Set-Content -Path "$pkgdir/__init__.py" -Value $initContent -Encoding utf8
 
@@ -467,6 +479,12 @@ jobs:
           print(f'tase2 version: {tase2.__version__}')
           from pyiec61850 import mms
           print(f'mms version: {mms.__version__}')
+          from pyiec61850 import goose
+          print(f'goose version: {goose.__version__}')
+          from pyiec61850 import sv
+          print(f'sv version: {sv.__version__}')
+          from pyiec61850 import server
+          print(f'server version: {server.__version__}')
           print('SUCCESS: Wheel import works')
           '@
           Pop-Location
@@ -523,6 +541,12 @@ jobs:
           print(f'tase2 version: {tase2.__version__}')
           from pyiec61850 import mms
           print(f'mms version: {mms.__version__}')
+          from pyiec61850 import goose
+          print(f'goose version: {goose.__version__}')
+          from pyiec61850 import sv
+          print(f'sv version: {sv.__version__}')
+          from pyiec61850 import server
+          print(f'server version: {server.__version__}')
           print('SUCCESS: Wheel import works')
           '@
 
