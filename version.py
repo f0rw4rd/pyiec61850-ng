@@ -15,7 +15,7 @@ import sys
 
 # Fallback version configuration (used when no git tag available)
 LIBIEC61850_VERSION = "1.6.0"  # Static libiec61850 version we build against
-PACKAGE_REVISION = 13          # Our package revision - increment for bug fixes, rebuilds, etc.
+PACKAGE_REVISION = 14          # Our package revision - increment for bug fixes, rebuilds, etc.
 
 def get_git_tag_version():
     """Extract version from git tag if available."""
