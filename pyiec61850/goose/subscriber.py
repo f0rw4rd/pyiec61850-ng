@@ -180,7 +180,9 @@ class GooseSubscriber:
 
         try:
             # Create GOOSE subscriber
-            self._subscriber = iec61850.GooseSubscriber_create(self._go_cb_ref, None)
+            # v1.6.1.0: dataSetValues must not be NULL, use empty array
+            empty_ds = iec61850.MmsValue_createEmptyArray(0)
+            self._subscriber = iec61850.GooseSubscriber_create(self._go_cb_ref, empty_ds)
             if not self._subscriber:
                 raise SubscriptionError("Failed to create GooseSubscriber")
 
@@ -247,9 +249,20 @@ class GooseSubscriber:
             self._cleanup()
 
     def _cleanup(self) -> None:
-        """Clean up all native resources."""
-        self._goose_handler = None
-        self._goose_subscriber_py = None
+        """Clean up all native resources.
+
+        Order matters:
+        1. Sever the SWIG director link (deleteEventHandler)
+        2. Destroy C++ receiver (which also frees the subscriber)
+        3. Disable SWIG destructor on handler (thisown=0) since C++ already freed it
+        4. Release Python references
+        """
+        # Sever director link before destroying C++ objects
+        if self._goose_subscriber_py:
+            try:
+                self._goose_subscriber_py.deleteEventHandler()
+            except Exception:
+                pass
 
         if self._receiver:
             try:
@@ -259,6 +272,13 @@ class GooseSubscriber:
         self._receiver = None
         # Subscriber is destroyed with receiver, do not double-free
         self._subscriber = None
+
+        # Prevent SWIG from calling C++ destructor on handler (already freed)
+        if self._goose_handler and hasattr(self._goose_handler, "thisown"):
+            self._goose_handler.thisown = 0
+
+        self._goose_subscriber_py = None
+        self._goose_handler = None
         self._running = False
 
     def __enter__(self) -> "GooseSubscriber":
@@ -278,24 +298,25 @@ class GooseSubscriber:
             pass
 
 
-class _PyGooseHandler:
+# Dynamically inherit from GooseHandler so SWIG director vtable is correct.
+# Without proper inheritance, C++ callback into trigger() segfaults.
+_GooseHandlerBase = (
+    iec61850.GooseHandler if _HAS_IEC61850 and hasattr(iec61850, "GooseHandler") else object
+)
+
+
+class _PyGooseHandler(_GooseHandlerBase):
     """
     Python-side GOOSE handler (SWIG director subclass).
 
-    When the SWIG bindings are available, this inherits from
-    GooseHandler and overrides trigger() to parse received
-    GOOSE data into GooseMessage objects.
+    Inherits from GooseHandler so the C++ side can call trigger()
+    through the SWIG director vtable without segfaulting.
     """
 
     def __init__(self, callback: Callable, go_cb_ref: str):
+        super().__init__()
         self._callback = callback
         self._go_cb_ref = go_cb_ref
-
-        if _HAS_IEC61850 and hasattr(iec61850, "GooseHandler"):
-            try:
-                iec61850.GooseHandler.__init__(self)
-            except Exception:
-                pass
 
     def trigger(self):
         """Called by C++ subscriber when a GOOSE message arrives."""
