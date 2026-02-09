@@ -82,6 +82,13 @@ from .exceptions import (
     CleanupError,
 )
 
+# New feature modules
+from .reporting import ReportClient, Report, ReportEntry, RCBConfig, ReportError, ReportConfigError
+from .control import ControlClient, ControlResult, ControlError, SelectError, OperateError, CancelError
+from .files import FileClient, FileInfo, FileError, FileNotFoundError, FileAccessError
+from .logging_service import LogClient, JournalEntry, JournalEntryData, LogQueryResult, LogError, LogQueryError
+from .tls import TLSConfig, TLSError, TLSConfigError, create_tls_configuration
+
 __all__ = [
     # Version
     "__version__",
@@ -90,6 +97,38 @@ __all__ = [
     "MMSClient",
     "ServerIdentity",
     "DataAttribute",
+    # Reporting
+    "ReportClient",
+    "Report",
+    "ReportEntry",
+    "RCBConfig",
+    "ReportError",
+    "ReportConfigError",
+    # Control
+    "ControlClient",
+    "ControlResult",
+    "ControlError",
+    "SelectError",
+    "OperateError",
+    "CancelError",
+    # File services
+    "FileClient",
+    "FileInfo",
+    "FileError",
+    "FileNotFoundError",
+    "FileAccessError",
+    # Log/Journal services
+    "LogClient",
+    "JournalEntry",
+    "JournalEntryData",
+    "LogQueryResult",
+    "LogError",
+    "LogQueryError",
+    # TLS
+    "TLSConfig",
+    "TLSError",
+    "TLSConfigError",
+    "create_tls_configuration",
     # Safe utilities (Issue #1, #2 fixes)
     "safe_to_char_p",
     "safe_linked_list_iter",
