@@ -221,7 +221,10 @@ class GooseSubscriber:
             self._running = True
             logger.info(f"GOOSE subscriber started on {self._interface} for {self._go_cb_ref}")
 
-        except (AlreadyStartedError, SubscriptionError, InterfaceError):
+        except AlreadyStartedError:
+            raise
+        except (SubscriptionError, InterfaceError):
+            self._cleanup()
             raise
         except Exception as e:
             self._cleanup()

@@ -697,12 +697,7 @@ class TestGooseSubscriberCleanupOrdering(unittest.TestCase):
     """Test _cleanup() ordering -- destroy after unsubscribe, no double-free."""
 
     def test_cleanup_after_partial_start_subscriber_only(self):
-        """If receiver creation fails, cleanup must not crash on NULL receiver.
-
-        NOTE: The SubscriptionError path re-raises directly without calling
-        _cleanup(), so _subscriber is leaked. This is a potential resource leak
-        bug -- the subscriber object is not freed when receiver creation fails.
-        """
+        """If receiver creation fails, cleanup must free the subscriber."""
         with patch("pyiec61850.goose.subscriber._HAS_IEC61850", True):
             with patch("pyiec61850.goose.subscriber.iec61850") as mock_iec:
                 mock_iec.GooseSubscriber_create.return_value = Mock()
@@ -714,12 +709,9 @@ class TestGooseSubscriberCleanupOrdering(unittest.TestCase):
                 with self.assertRaises(SubscriptionError):
                     sub.start()
 
-                # Receiver was never assigned since it was NULL
+                # Both receiver and subscriber must be cleaned up
                 self.assertIsNone(sub._receiver)
-                # BUG: _subscriber is NOT cleaned up on SubscriptionError path
-                # because the except clause re-raises before _cleanup() runs.
-                # The subscriber object leaks here.
-                self.assertIsNotNone(sub._subscriber)
+                self.assertIsNone(sub._subscriber)
 
     def test_cleanup_severs_director_link_before_destroy(self):
         """Director link (deleteEventHandler) must be severed before receiver destroy."""
