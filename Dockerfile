@@ -45,6 +45,7 @@ RUN cd libiec61850/third_party/mbedtls && \
 # Replace upstream SWIG interface with our enhanced version
 # (includes NULL-safety typemaps, file download helpers, IedClientError typemap)
 COPY patches/iec61850.i /build/libiec61850/pyiec61850/iec61850.i
+COPY patches/informationReportHandler.hpp /build/libiec61850/pyiec61850/eventHandlers/informationReportHandler.hpp
 
 # Build libiec61850 with Python bindings
 WORKDIR /build/libiec61850
