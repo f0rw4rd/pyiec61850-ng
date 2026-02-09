@@ -492,13 +492,7 @@ class ControlClient:
         return False
 
 
-# Dynamically inherit from CommandTermHandler so SWIG director vtable is correct.
-# Without proper inheritance, C++ callback into trigger() segfaults.
-_CommandTermHandlerBase = (
-    iec61850.CommandTermHandler
-    if _HAS_IEC61850 and hasattr(iec61850, "CommandTermHandler")
-    else object
-)
+_CommandTermHandlerBase = getattr(iec61850, "CommandTermHandler", object)
 
 
 class _PyCommandTermHandler(_CommandTermHandlerBase):

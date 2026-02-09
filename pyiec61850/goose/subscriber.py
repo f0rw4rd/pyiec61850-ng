@@ -298,11 +298,7 @@ class GooseSubscriber:
             pass
 
 
-# Dynamically inherit from GooseHandler so SWIG director vtable is correct.
-# Without proper inheritance, C++ callback into trigger() segfaults.
-_GooseHandlerBase = (
-    iec61850.GooseHandler if _HAS_IEC61850 and hasattr(iec61850, "GooseHandler") else object
-)
+_GooseHandlerBase = getattr(iec61850, "GooseHandler", object)
 
 
 class _PyGooseHandler(_GooseHandlerBase):

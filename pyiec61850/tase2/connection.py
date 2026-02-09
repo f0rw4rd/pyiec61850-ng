@@ -1141,13 +1141,7 @@ class MmsConnectionWrapper:
             pass
 
 
-# Dynamically inherit from InformationReportHandler so SWIG director vtable is correct.
-# Without proper inheritance, C++ callback into trigger() segfaults.
-_InfoReportHandlerBase = (
-    iec61850.InformationReportHandler
-    if _HAS_IEC61850 and hasattr(iec61850, "InformationReportHandler")
-    else object
-)
+_InfoReportHandlerBase = getattr(iec61850, "InformationReportHandler", object)
 
 
 class _PyInfoReportHandler(_InfoReportHandlerBase):

@@ -492,11 +492,7 @@ class ReportClient:
         return False
 
 
-# Dynamically inherit from RCBHandler so SWIG director vtable is correct.
-# Without proper inheritance, C++ callback into trigger() segfaults.
-_RCBHandlerBase = (
-    iec61850.RCBHandler if _HAS_IEC61850 and hasattr(iec61850, "RCBHandler") else object
-)
+_RCBHandlerBase = getattr(iec61850, "RCBHandler", object)
 
 
 class _PyRCBHandler(_RCBHandlerBase):
