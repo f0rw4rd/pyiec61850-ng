@@ -5,9 +5,9 @@ Tests for mms_value_to_python and python_to_mms_value.
 All tests use mocks (no C library needed).
 """
 
+import logging
 import unittest
 from unittest.mock import Mock, patch
-import logging
 
 logging.disable(logging.CRITICAL)
 
@@ -17,9 +17,10 @@ class TestMmsValueToPython(unittest.TestCase):
 
     def _call(self, mock_iec, mms_value):
         """Helper to call mms_value_to_python with mocked library."""
-        with patch('pyiec61850.mms.utils._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.utils.iec61850', mock_iec):
+        with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils.iec61850", mock_iec):
                 from pyiec61850.mms.utils import mms_value_to_python
+
                 return mms_value_to_python(mms_value)
 
     def test_none_returns_none(self):
@@ -139,7 +140,7 @@ class TestMmsValueToPython(unittest.TestCase):
         mock_iec.MmsValue_getOctetStringBuffer.return_value = Mock()
         mock_iec.MmsValue_getOctetStringOctet.side_effect = [0xDE, 0xAD, 0xBE]
         result = self._call(mock_iec, Mock())
-        self.assertEqual(result, b'\xde\xad\xbe')
+        self.assertEqual(result, b"\xde\xad\xbe")
         self.assertIsInstance(result, bytes)
 
     def test_octet_string_empty(self):
@@ -156,7 +157,7 @@ class TestMmsValueToPython(unittest.TestCase):
         mock_iec.MmsValue_getOctetStringSize.return_value = 0
         mock_iec.MmsValue_getOctetStringBuffer.return_value = None
         result = self._call(mock_iec, Mock())
-        self.assertEqual(result, b'')
+        self.assertEqual(result, b"")
 
     def test_utc_time(self):
         mock_iec = Mock()
@@ -232,9 +233,9 @@ class TestMmsValueToPython(unittest.TestCase):
         mock_iec.MMS_BINARY_TIME = 10
         mock_iec.MMS_DATA_ACCESS_ERROR = 15
 
-        arr_val = Mock(name='array')
-        elem0 = Mock(name='elem0')
-        elem1 = Mock(name='elem1')
+        arr_val = Mock(name="array")
+        elem0 = Mock(name="elem0")
+        elem1 = Mock(name="elem1")
 
         # First call: array, then element calls: int, bool
         mock_iec.MmsValue_getType.side_effect = [0, 4, 2]
@@ -263,8 +264,8 @@ class TestMmsValueToPython(unittest.TestCase):
         mock_iec.MMS_BINARY_TIME = 10
         mock_iec.MMS_DATA_ACCESS_ERROR = 15
 
-        struct_val = Mock(name='struct')
-        field0 = Mock(name='field0')
+        struct_val = Mock(name="struct")
+        field0 = Mock(name="field0")
 
         mock_iec.MmsValue_getType.side_effect = [1, 6]
         mock_iec.MmsValue_getArraySize.return_value = 1
@@ -276,9 +277,10 @@ class TestMmsValueToPython(unittest.TestCase):
 
     def test_library_not_found(self):
         """Should raise LibraryNotFoundError when library missing."""
-        from pyiec61850.mms.utils import mms_value_to_python
         from pyiec61850.mms.exceptions import LibraryNotFoundError
-        with patch('pyiec61850.mms.utils._HAS_IEC61850', False):
+        from pyiec61850.mms.utils import mms_value_to_python
+
+        with patch("pyiec61850.mms.utils._HAS_IEC61850", False):
             with self.assertRaises(LibraryNotFoundError):
                 mms_value_to_python(Mock())
 
@@ -288,9 +290,10 @@ class TestPythonToMmsValue(unittest.TestCase):
 
     def _call(self, mock_iec, value):
         """Helper to call python_to_mms_value with mocked library."""
-        with patch('pyiec61850.mms.utils._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.utils.iec61850', mock_iec):
+        with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils.iec61850", mock_iec):
                 from pyiec61850.mms.utils import python_to_mms_value
+
                 return python_to_mms_value(value)
 
     def test_bool_true(self):
@@ -303,14 +306,14 @@ class TestPythonToMmsValue(unittest.TestCase):
     def test_bool_false(self):
         mock_iec = Mock()
         mock_iec.MmsValue_newBoolean.return_value = "bool_handle"
-        result = self._call(mock_iec, False)
+        self._call(mock_iec, False)
         mock_iec.MmsValue_newBoolean.assert_called_once_with(False)
 
     def test_bool_before_int(self):
         """bool is subclass of int -- must create boolean, not integer."""
         mock_iec = Mock()
         mock_iec.MmsValue_newBoolean.return_value = "bool_handle"
-        result = self._call(mock_iec, True)
+        self._call(mock_iec, True)
         mock_iec.MmsValue_newBoolean.assert_called_once()
         mock_iec.MmsValue_newIntegerFromInt64.assert_not_called()
 
@@ -324,7 +327,7 @@ class TestPythonToMmsValue(unittest.TestCase):
     def test_negative_int(self):
         mock_iec = Mock()
         mock_iec.MmsValue_newIntegerFromInt64.return_value = "int_handle"
-        result = self._call(mock_iec, -100)
+        self._call(mock_iec, -100)
         mock_iec.MmsValue_newIntegerFromInt64.assert_called_once_with(-100)
 
     def test_float(self):
@@ -344,7 +347,7 @@ class TestPythonToMmsValue(unittest.TestCase):
     def test_empty_string(self):
         mock_iec = Mock()
         mock_iec.MmsValue_newVisibleString.return_value = "str_handle"
-        result = self._call(mock_iec, "")
+        self._call(mock_iec, "")
         mock_iec.MmsValue_newVisibleString.assert_called_once_with("")
 
     def test_unsupported_type_raises_type_error(self):
@@ -361,15 +364,16 @@ class TestPythonToMmsValue(unittest.TestCase):
     def test_unsupported_type_bytes(self):
         mock_iec = Mock()
         with self.assertRaises(TypeError):
-            self._call(mock_iec, b'\x00')
+            self._call(mock_iec, b"\x00")
 
     def test_library_not_found(self):
-        from pyiec61850.mms.utils import python_to_mms_value
         from pyiec61850.mms.exceptions import LibraryNotFoundError
-        with patch('pyiec61850.mms.utils._HAS_IEC61850', False):
+        from pyiec61850.mms.utils import python_to_mms_value
+
+        with patch("pyiec61850.mms.utils._HAS_IEC61850", False):
             with self.assertRaises(LibraryNotFoundError):
                 python_to_mms_value(42)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

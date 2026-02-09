@@ -8,35 +8,36 @@ data points, transfer sets, and bilateral tables.
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, List, Optional, Dict
+from typing import Any, Dict, List, Optional
 
 from .constants import (
-    QUALITY_GOOD,
-    DOMAIN_VCC,
-    POINT_TYPES,
-    CONTROL_TYPES,
     CONFORMANCE_BLOCKS,
-    QUALITY_VALIDITY_VALID,
-    QUALITY_VALIDITY_SUSPECT,
+    CONTROL_TYPES,
+    DOMAIN_VCC,
+    DS_CONDITIONS_CHANGE,
+    DS_CONDITIONS_EXTERNAL_EVENT,
+    DS_CONDITIONS_INTEGRITY,
+    DS_CONDITIONS_INTERVAL,
+    DS_CONDITIONS_OPERATOR_REQUEST,
+    POINT_TYPES,
+    QUALITY_GOOD,
+    QUALITY_NORMAL_VALUE,
+    QUALITY_SOURCE_CALCULATED,
+    QUALITY_SOURCE_ENTERED,
+    QUALITY_SOURCE_ESTIMATED,
+    QUALITY_SOURCE_TELEMETERED,
+    QUALITY_TIMESTAMP_QUALITY,
     QUALITY_VALIDITY_HELD,
     QUALITY_VALIDITY_NOT_VALID,
-    QUALITY_SOURCE_TELEMETERED,
-    QUALITY_SOURCE_ENTERED,
-    QUALITY_SOURCE_CALCULATED,
-    QUALITY_SOURCE_ESTIMATED,
-    QUALITY_NORMAL_VALUE,
-    QUALITY_TIMESTAMP_QUALITY,
-    DS_CONDITIONS_INTERVAL,
-    DS_CONDITIONS_INTEGRITY,
-    DS_CONDITIONS_CHANGE,
-    DS_CONDITIONS_OPERATOR_REQUEST,
-    DS_CONDITIONS_EXTERNAL_EVENT,
+    QUALITY_VALIDITY_SUSPECT,
+    QUALITY_VALIDITY_VALID,
 )
 
 
 @dataclass
 class DataFlags:
     """TASE.2 Data Flags (Quality) - 8-bit bitmask."""
+
     validity: int = QUALITY_VALIDITY_VALID
     source: int = QUALITY_SOURCE_TELEMETERED
     normal_value: bool = False
@@ -53,7 +54,7 @@ class DataFlags:
         return value
 
     @classmethod
-    def from_raw(cls, value: int) -> 'DataFlags':
+    def from_raw(cls, value: int) -> "DataFlags":
         """Create DataFlags from raw 8-bit bitmask."""
         return cls(
             validity=value & 0x0C,
@@ -115,6 +116,7 @@ class DataFlags:
 @dataclass
 class TransferSetConditions:
     """TASE.2 Transfer Set Conditions (DSConditions) bitmask."""
+
     interval_timeout: bool = False
     integrity_timeout: bool = False
     object_change: bool = False
@@ -137,7 +139,7 @@ class TransferSetConditions:
         return value
 
     @classmethod
-    def from_raw(cls, value: int) -> 'TransferSetConditions':
+    def from_raw(cls, value: int) -> "TransferSetConditions":
         return cls(
             interval_timeout=bool(value & DS_CONDITIONS_INTERVAL),
             integrity_timeout=bool(value & DS_CONDITIONS_INTEGRITY),
@@ -160,6 +162,7 @@ class TransferSetConditions:
 @dataclass
 class ProtectionEvent:
     """TASE.2 Protection Event with flags, timing, and timestamp."""
+
     event_flags: int = 0
     operating_time: int = 0
     timestamp: Optional[datetime] = None
@@ -213,6 +216,7 @@ class ProtectionEvent:
 @dataclass
 class Domain:
     """TASE.2 Domain (VCC or ICC)."""
+
     name: str
     is_vcc: bool = False
     variables: List[str] = field(default_factory=list)
@@ -234,6 +238,7 @@ class Domain:
 @dataclass
 class Variable:
     """TASE.2 Variable definition within a domain."""
+
     name: str
     domain: str
     point_type: Optional[int] = None
@@ -254,6 +259,7 @@ class Variable:
 @dataclass
 class PointValue:
     """TASE.2 Data Point Value with quality and timestamp."""
+
     value: Any
     quality: str = QUALITY_GOOD
     timestamp: Optional[datetime] = None
@@ -310,6 +316,7 @@ class PointValue:
 @dataclass
 class ControlPoint:
     """TASE.2 Control Point (Block 5)."""
+
     name: str
     domain: str
     control_type: Optional[int] = None
@@ -330,6 +337,7 @@ class ControlPoint:
 @dataclass
 class DataSet:
     """TASE.2 Data Set (Named Variable List)."""
+
     name: str
     domain: str
     members: List[str] = field(default_factory=list)
@@ -347,6 +355,7 @@ class DataSet:
 @dataclass
 class TransferSet:
     """TASE.2 Data Set Transfer Set (Block 2)."""
+
     name: str
     domain: str
     data_set: str = ""
@@ -385,6 +394,7 @@ class TransferSet:
 @dataclass
 class BilateralTable:
     """TASE.2 Bilateral Table defining access agreements."""
+
     table_id: str
     version: int = 1
     tase2_version: str = "2000-8"
@@ -396,11 +406,7 @@ class BilateralTable:
 
     @property
     def supported_block_names(self) -> List[str]:
-        return [
-            CONFORMANCE_BLOCKS[b][0]
-            for b in self.supported_blocks
-            if b in CONFORMANCE_BLOCKS
-        ]
+        return [CONFORMANCE_BLOCKS[b][0] for b in self.supported_blocks if b in CONFORMANCE_BLOCKS]
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -415,6 +421,7 @@ class BilateralTable:
 @dataclass
 class ServerInfo:
     """TASE.2 Server Information."""
+
     vendor: Optional[str] = None
     model: Optional[str] = None
     revision: Optional[str] = None
@@ -435,9 +442,7 @@ class ServerInfo:
             result["bilateral_table_id"] = self.bilateral_table_id
         if self.conformance_blocks:
             result["conformance_blocks"] = [
-                CONFORMANCE_BLOCKS[b][0]
-                for b in self.conformance_blocks
-                if b in CONFORMANCE_BLOCKS
+                CONFORMANCE_BLOCKS[b][0] for b in self.conformance_blocks if b in CONFORMANCE_BLOCKS
             ]
         return result
 
@@ -445,6 +450,7 @@ class ServerInfo:
 @dataclass
 class DSTransferSetConfig:
     """Configuration for a DS Transfer Set."""
+
     data_set_name: Optional[str] = None
     start_time: Optional[int] = None
     interval: Optional[int] = None
@@ -482,9 +488,10 @@ class DSTransferSetConfig:
 @dataclass
 class TransferReport:
     """A received TASE.2 InformationReport (transfer report)."""
+
     domain: str
     transfer_set_name: str
-    values: List['PointValue'] = field(default_factory=list)
+    values: List["PointValue"] = field(default_factory=list)
     timestamp: Optional[datetime] = None
     conditions_detected: Optional[TransferSetConditions] = None
     sequence_number: Optional[int] = None
@@ -507,6 +514,7 @@ class TransferReport:
 @dataclass
 class SBOState:
     """Select-Before-Operate state for a control device."""
+
     select_time: float = 0.0
     domain: str = ""
     device: str = ""
@@ -516,6 +524,7 @@ class SBOState:
 @dataclass
 class InformationMessage:
     """TASE.2 Information Message (Block 4)."""
+
     info_ref: int = 0
     local_ref: int = 0
     msg_id: int = 0
@@ -565,6 +574,7 @@ class IMTransferSetConfig:
 
     When enabled, the server pushes information messages to the client.
     """
+
     enabled: bool = False
     name: Optional[str] = None
 
@@ -583,11 +593,12 @@ class InformationBuffer:
 
     Server-side storage for information messages.
     """
+
     name: str
     domain: str
     max_size: int = 0
     entry_count: int = 0
-    messages: List['InformationMessage'] = field(default_factory=list)
+    messages: List["InformationMessage"] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -609,6 +620,7 @@ class TagState:
     - 2: Close only inhibit
     - 3: Invalid/unknown
     """
+
     tag_value: int = 0
     reason: str = ""
     device: str = ""
@@ -660,6 +672,7 @@ class TagState:
 @dataclass
 class ClientStatistics:
     """TASE.2 Client Statistics and Diagnostics."""
+
     total_reads: int = 0
     total_writes: int = 0
     total_errors: int = 0
@@ -692,6 +705,7 @@ class ClientStatistics:
 @dataclass
 class ServerAddress:
     """TASE.2 Server Address for failover configuration."""
+
     host: str
     port: int = 102
     priority: str = "primary"
@@ -711,6 +725,7 @@ class ServerAddress:
 @dataclass
 class Association:
     """TASE.2 Association."""
+
     association_id: str
     ae_title: Optional[str] = None
     local_ap_title: Optional[str] = None

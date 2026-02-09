@@ -20,12 +20,12 @@ Usage:
     )
 """
 
-from typing import Any, Dict, Generator, List, Optional, Callable, Union
-from contextlib import contextmanager
 import logging
+from typing import Any, Generator, List, Optional, Union
 
 try:
     import pyiec61850.pyiec61850 as iec61850
+
     _HAS_IEC61850 = True
 except ImportError:
     _HAS_IEC61850 = False
@@ -33,8 +33,6 @@ except ImportError:
 
 from .exceptions import (
     LibraryNotFoundError,
-    NullPointerError,
-    CleanupError,
 )
 
 logger = logging.getLogger(__name__)
@@ -51,6 +49,7 @@ def _ensure_library() -> None:
 # =============================================================================
 # Issue #2 Fix: Safe toCharP wrapper
 # =============================================================================
+
 
 def safe_to_char_p(ptr: Any) -> Optional[str]:
     """
@@ -81,7 +80,7 @@ def safe_to_char_p(ptr: Any) -> Optional[str]:
         return None
 
     # Check for invalid pointer types
-    if not hasattr(iec61850, 'toCharP'):
+    if not hasattr(iec61850, "toCharP"):
         logger.warning("toCharP not available in pyiec61850")
         return None
 
@@ -96,6 +95,7 @@ def safe_to_char_p(ptr: Any) -> Optional[str]:
 # =============================================================================
 # Issue #2 & #3 Fix: Safe LinkedList iteration
 # =============================================================================
+
 
 def safe_linked_list_iter(linked_list: Any) -> Generator[str, None, None]:
     """
@@ -183,6 +183,7 @@ def safe_linked_list_destroy(linked_list: Any) -> None:
 # Issue #1 Fix: Correct MmsError cleanup (note: MmsError vs MmsErrror)
 # =============================================================================
 
+
 def safe_mms_error_destroy(mms_error: Any) -> None:
     """
     Safely destroy an MmsError object.
@@ -200,7 +201,7 @@ def safe_mms_error_destroy(mms_error: Any) -> None:
 
     try:
         # CORRECT spelling: MmsError_destroy (2 r's)
-        if hasattr(iec61850, 'MmsError_destroy'):
+        if hasattr(iec61850, "MmsError_destroy"):
             iec61850.MmsError_destroy(mms_error)
     except Exception as e:
         logger.debug(f"MmsError_destroy error: {e}")
@@ -209,6 +210,7 @@ def safe_mms_error_destroy(mms_error: Any) -> None:
 # =============================================================================
 # Issue #4 Fix: Safe MmsServerIdentity cleanup
 # =============================================================================
+
 
 def safe_identity_destroy(identity: Any) -> None:
     """
@@ -223,7 +225,7 @@ def safe_identity_destroy(identity: Any) -> None:
         return
 
     try:
-        if hasattr(iec61850, 'MmsServerIdentity_destroy'):
+        if hasattr(iec61850, "MmsServerIdentity_destroy"):
             iec61850.MmsServerIdentity_destroy(identity)
     except Exception as e:
         logger.debug(f"MmsServerIdentity_destroy error: {e}")
@@ -232,6 +234,7 @@ def safe_identity_destroy(identity: Any) -> None:
 # =============================================================================
 # Issue #5 Fix: Safe MmsValue cleanup
 # =============================================================================
+
 
 def safe_mms_value_delete(value: Any) -> None:
     """
@@ -246,7 +249,7 @@ def safe_mms_value_delete(value: Any) -> None:
         return
 
     try:
-        if hasattr(iec61850, 'MmsValue_delete'):
+        if hasattr(iec61850, "MmsValue_delete"):
             iec61850.MmsValue_delete(value)
     except Exception as e:
         logger.debug(f"MmsValue_delete error: {e}")
@@ -255,6 +258,7 @@ def safe_mms_value_delete(value: Any) -> None:
 # =============================================================================
 # Context Managers for Automatic Cleanup (Issue #3, #4, #5)
 # =============================================================================
+
 
 class LinkedListGuard:
     """
@@ -274,7 +278,7 @@ class LinkedListGuard:
         self.list = linked_list
         self._destroyed = False
 
-    def __enter__(self) -> 'LinkedListGuard':
+    def __enter__(self) -> "LinkedListGuard":
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
@@ -306,7 +310,7 @@ class MmsValueGuard:
         self.value = value
         self._deleted = False
 
-    def __enter__(self) -> 'MmsValueGuard':
+    def __enter__(self) -> "MmsValueGuard":
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
@@ -335,7 +339,7 @@ class MmsErrorGuard:
         self.error = error
         self._destroyed = False
 
-    def __enter__(self) -> 'MmsErrorGuard':
+    def __enter__(self) -> "MmsErrorGuard":
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
@@ -362,7 +366,7 @@ class IdentityGuard:
         self.identity = identity
         self._destroyed = False
 
-    def __enter__(self) -> 'IdentityGuard':
+    def __enter__(self) -> "IdentityGuard":
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
@@ -376,6 +380,7 @@ class IdentityGuard:
 # =============================================================================
 # Convenience function for handling tuple returns
 # =============================================================================
+
 
 def unpack_result(result: Any, error_ok: int = None) -> tuple:
     """
@@ -401,7 +406,7 @@ def unpack_result(result: Any, error_ok: int = None) -> tuple:
     _ensure_library()
 
     if error_ok is None:
-        error_ok = getattr(iec61850, 'IED_ERROR_OK', 0)
+        error_ok = getattr(iec61850, "IED_ERROR_OK", 0)
 
     if isinstance(result, tuple) and len(result) >= 2:
         value, error = result[0], result[1]
@@ -414,6 +419,7 @@ def unpack_result(result: Any, error_ok: int = None) -> tuple:
 # =============================================================================
 # Safe cleanup helper for multiple resources
 # =============================================================================
+
 
 def cleanup_all(*resources: tuple) -> None:
     """
@@ -464,9 +470,7 @@ def _mms_const(name: str, fallback: int) -> int:
     return fallback
 
 
-def mms_value_to_python(mms_value: Any) -> Union[
-    bool, int, float, str, bytes, list, dict, None
-]:
+def mms_value_to_python(mms_value: Any) -> Union[bool, int, float, str, bytes, list, dict, None]:
     """
     Convert an MmsValue to a native Python type.
 
@@ -505,19 +509,19 @@ def mms_value_to_python(mms_value: Any) -> Union[
 
     mms_type = iec61850.MmsValue_getType(mms_value)
 
-    type_boolean = _mms_const('MMS_BOOLEAN', _MMS_BOOLEAN)
-    type_integer = _mms_const('MMS_INTEGER', _MMS_INTEGER)
-    type_unsigned = _mms_const('MMS_UNSIGNED', _MMS_UNSIGNED)
-    type_float = _mms_const('MMS_FLOAT', _MMS_FLOAT)
-    type_visible_string = _mms_const('MMS_VISIBLE_STRING', _MMS_VISIBLE_STRING)
-    type_string = _mms_const('MMS_STRING', _MMS_STRING)
-    type_bit_string = _mms_const('MMS_BIT_STRING', _MMS_BIT_STRING)
-    type_octet_string = _mms_const('MMS_OCTET_STRING', _MMS_OCTET_STRING)
-    type_structure = _mms_const('MMS_STRUCTURE', _MMS_STRUCTURE)
-    type_array = _mms_const('MMS_ARRAY', _MMS_ARRAY)
-    type_utc_time = _mms_const('MMS_UTC_TIME', _MMS_UTC_TIME)
-    type_binary_time = _mms_const('MMS_BINARY_TIME', _MMS_BINARY_TIME)
-    type_data_access_error = _mms_const('MMS_DATA_ACCESS_ERROR', _MMS_DATA_ACCESS_ERROR)
+    type_boolean = _mms_const("MMS_BOOLEAN", _MMS_BOOLEAN)
+    type_integer = _mms_const("MMS_INTEGER", _MMS_INTEGER)
+    type_unsigned = _mms_const("MMS_UNSIGNED", _MMS_UNSIGNED)
+    type_float = _mms_const("MMS_FLOAT", _MMS_FLOAT)
+    type_visible_string = _mms_const("MMS_VISIBLE_STRING", _MMS_VISIBLE_STRING)
+    type_string = _mms_const("MMS_STRING", _MMS_STRING)
+    type_bit_string = _mms_const("MMS_BIT_STRING", _MMS_BIT_STRING)
+    type_octet_string = _mms_const("MMS_OCTET_STRING", _MMS_OCTET_STRING)
+    type_structure = _mms_const("MMS_STRUCTURE", _MMS_STRUCTURE)
+    type_array = _mms_const("MMS_ARRAY", _MMS_ARRAY)
+    type_utc_time = _mms_const("MMS_UTC_TIME", _MMS_UTC_TIME)
+    type_binary_time = _mms_const("MMS_BINARY_TIME", _MMS_BINARY_TIME)
+    type_data_access_error = _mms_const("MMS_DATA_ACCESS_ERROR", _MMS_DATA_ACCESS_ERROR)
 
     if mms_type == type_boolean:
         return bool(iec61850.MmsValue_getBoolean(mms_value))
@@ -542,7 +546,7 @@ def mms_value_to_python(mms_value: Any) -> Union[
         buf = iec61850.MmsValue_getOctetStringBuffer(mms_value)
         if buf is not None and size > 0:
             return bytes(iec61850.MmsValue_getOctetStringOctet(mms_value, i) for i in range(size))
-        return b''
+        return b""
 
     elif mms_type == type_array:
         count = iec61850.MmsValue_getArraySize(mms_value)

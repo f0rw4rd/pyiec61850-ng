@@ -7,8 +7,8 @@ without requiring an actual TASE.2 server connection.
 """
 
 import unittest
-from unittest.mock import Mock, patch, MagicMock
 from datetime import datetime
+from unittest.mock import MagicMock, patch
 
 
 class TestTASE2Imports(unittest.TestCase):
@@ -17,20 +17,22 @@ class TestTASE2Imports(unittest.TestCase):
     def test_client_import(self):
         """Test TASE2Client can be imported."""
         from pyiec61850.tase2 import TASE2Client
+
         self.assertIsNotNone(TASE2Client)
 
     def test_types_import(self):
         """Test data types can be imported."""
         from pyiec61850.tase2 import (
-            Domain,
-            Variable,
-            PointValue,
+            BilateralTable,
             ControlPoint,
             DataSet,
-            TransferSet,
-            BilateralTable,
+            Domain,
+            PointValue,
             ServerInfo,
+            TransferSet,
+            Variable,
         )
+
         self.assertIsNotNone(Domain)
         self.assertIsNotNone(Variable)
         self.assertIsNotNone(PointValue)
@@ -43,16 +45,13 @@ class TestTASE2Imports(unittest.TestCase):
     def test_constants_import(self):
         """Test constants can be imported."""
         from pyiec61850.tase2 import (
-            DEFAULT_PORT,
-            DEFAULT_TIMEOUT,
-            POINT_TYPES,
             CONFORMANCE_BLOCKS,
+            DEFAULT_PORT,
+            POINT_TYPES,
             QUALITY_GOOD,
             QUALITY_INVALID,
-            BLOCK_1,
-            BLOCK_2,
-            BLOCK_5,
         )
+
         self.assertEqual(DEFAULT_PORT, 102)
         self.assertIsInstance(POINT_TYPES, dict)
         self.assertEqual(len(CONFORMANCE_BLOCKS), 9)
@@ -62,18 +61,12 @@ class TestTASE2Imports(unittest.TestCase):
     def test_exceptions_import(self):
         """Test exceptions can be imported."""
         from pyiec61850.tase2 import (
-            TASE2Error,
-            LibraryError,
-            LibraryNotFoundError,
             ConnectionError,
-            ConnectionFailedError,
-            NotConnectedError,
-            ReadError,
-            WriteError,
             ControlError,
-            SelectError,
-            OperateError,
+            LibraryError,
+            TASE2Error,
         )
+
         self.assertTrue(issubclass(LibraryError, TASE2Error))
         self.assertTrue(issubclass(ConnectionError, TASE2Error))
         self.assertTrue(issubclass(ControlError, TASE2Error))
@@ -81,6 +74,7 @@ class TestTASE2Imports(unittest.TestCase):
     def test_is_available_function(self):
         """Test is_available function exists."""
         from pyiec61850.tase2 import is_available
+
         # Should return True since pyiec61850 is installed
         result = is_available()
         self.assertIsInstance(result, bool)
@@ -186,10 +180,10 @@ class TestTASE2Types(unittest.TestCase):
     def test_data_flags_creation(self):
         """Test DataFlags dataclass creation."""
         from pyiec61850.tase2 import (
-            DataFlags,
-            QUALITY_VALIDITY_VALID,
-            QUALITY_VALIDITY_SUSPECT,
             QUALITY_SOURCE_TELEMETERED,
+            QUALITY_VALIDITY_SUSPECT,
+            QUALITY_VALIDITY_VALID,
+            DataFlags,
         )
 
         # Default flags (valid, telemetered)
@@ -223,25 +217,25 @@ class TestTASE2Types(unittest.TestCase):
     def test_data_flags_round_trip(self):
         """Test DataFlags round-trip (from_raw -> raw_value)."""
         from pyiec61850.tase2 import (
-            DataFlags,
-            QUALITY_VALIDITY_VALID,
-            QUALITY_VALIDITY_SUSPECT,
+            QUALITY_SOURCE_CALCULATED,
+            QUALITY_SOURCE_ENTERED,
+            QUALITY_SOURCE_ESTIMATED,
+            QUALITY_SOURCE_TELEMETERED,
             QUALITY_VALIDITY_HELD,
             QUALITY_VALIDITY_NOT_VALID,
-            QUALITY_SOURCE_TELEMETERED,
-            QUALITY_SOURCE_ENTERED,
-            QUALITY_SOURCE_CALCULATED,
-            QUALITY_SOURCE_ESTIMATED,
+            QUALITY_VALIDITY_SUSPECT,
+            QUALITY_VALIDITY_VALID,
+            DataFlags,
         )
 
         # Test all validity/source combinations
         # Per libtase2: SUSPECT=4, HELD=8, NOT_VALID=12
         test_values = [
-            QUALITY_VALIDITY_VALID | QUALITY_SOURCE_TELEMETERED,          # 0
-            QUALITY_VALIDITY_SUSPECT | QUALITY_SOURCE_ENTERED,            # 4 | 16 = 20
-            QUALITY_VALIDITY_HELD | QUALITY_SOURCE_CALCULATED,            # 8 | 32 = 40
-            QUALITY_VALIDITY_NOT_VALID | QUALITY_SOURCE_ESTIMATED,        # 12 | 48 = 60
-            64,   # Normal value flag
+            QUALITY_VALIDITY_VALID | QUALITY_SOURCE_TELEMETERED,  # 0
+            QUALITY_VALIDITY_SUSPECT | QUALITY_SOURCE_ENTERED,  # 4 | 16 = 20
+            QUALITY_VALIDITY_HELD | QUALITY_SOURCE_CALCULATED,  # 8 | 32 = 40
+            QUALITY_VALIDITY_NOT_VALID | QUALITY_SOURCE_ESTIMATED,  # 12 | 48 = 60
+            64,  # Normal value flag
             128,  # Timestamp quality flag
             64 | 128,  # Both flags
         ]
@@ -253,7 +247,7 @@ class TestTASE2Types(unittest.TestCase):
 
     def test_data_flags_reserved_bits_ignored(self):
         """Test DataFlags.from_raw ignores reserved bits 0-1 per IEC 60870-6."""
-        from pyiec61850.tase2 import DataFlags, QUALITY_VALIDITY_VALID
+        from pyiec61850.tase2 import QUALITY_VALIDITY_VALID, DataFlags
 
         # Bits 0-1 are reserved and should be ignored during extraction.
         # A raw value with reserved bits set should still extract
@@ -270,21 +264,21 @@ class TestTASE2Types(unittest.TestCase):
 
     def test_transfer_set_conditions(self):
         """Test TransferSetConditions dataclass per IEC 60870-6-503 Section 8.1.7."""
-        from pyiec61850.tase2 import TransferSetConditions
         from pyiec61850.tase2 import (
-            DS_CONDITIONS_INTERVAL,
-            DS_CONDITIONS_INTEGRITY,
             DS_CONDITIONS_CHANGE,
-            DS_CONDITIONS_OPERATOR_REQUEST,
             DS_CONDITIONS_EXTERNAL_EVENT,
+            DS_CONDITIONS_INTEGRITY,
+            DS_CONDITIONS_INTERVAL,
+            DS_CONDITIONS_OPERATOR_REQUEST,
+            TransferSetConditions,
         )
 
         # Verify DSConditions bit positions per standard Section 8.1.7
-        self.assertEqual(DS_CONDITIONS_INTERVAL, 1)          # bit 0
-        self.assertEqual(DS_CONDITIONS_INTEGRITY, 2)         # bit 1
-        self.assertEqual(DS_CONDITIONS_CHANGE, 4)            # bit 2
+        self.assertEqual(DS_CONDITIONS_INTERVAL, 1)  # bit 0
+        self.assertEqual(DS_CONDITIONS_INTEGRITY, 2)  # bit 1
+        self.assertEqual(DS_CONDITIONS_CHANGE, 4)  # bit 2
         self.assertEqual(DS_CONDITIONS_OPERATOR_REQUEST, 8)  # bit 3
-        self.assertEqual(DS_CONDITIONS_EXTERNAL_EVENT, 16)   # bit 4
+        self.assertEqual(DS_CONDITIONS_EXTERNAL_EVENT, 16)  # bit 4
 
         # Test creation: INTERVAL(1) + CHANGE(4) = 5
         cond = TransferSetConditions(interval_timeout=True, object_change=True)
@@ -335,7 +329,7 @@ class TestTASE2Types(unittest.TestCase):
 
     def test_point_value_with_flags(self):
         """Test PointValue with DataFlags."""
-        from pyiec61850.tase2 import PointValue, DataFlags, QUALITY_VALIDITY_SUSPECT
+        from pyiec61850.tase2 import QUALITY_VALIDITY_SUSPECT, DataFlags, PointValue
 
         flags = DataFlags(validity=QUALITY_VALIDITY_SUSPECT)  # SUSPECT = 8
         pv = PointValue(value=123.45, flags=flags)
@@ -350,7 +344,7 @@ class TestTASE2Client(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures with mocked connection."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = False
@@ -372,16 +366,13 @@ class TestTASE2Client(unittest.TestCase):
         """Test TASE2Client with AP titles."""
         from pyiec61850.tase2 import TASE2Client
 
-        client = TASE2Client(
-            local_ap_title="1.1.1.999",
-            remote_ap_title="1.1.1.998"
-        )
+        client = TASE2Client(local_ap_title="1.1.1.999", remote_ap_title="1.1.1.998")
         self.assertEqual(client._local_ap_title, "1.1.1.999")
         self.assertEqual(client._remote_ap_title, "1.1.1.998")
 
     def test_not_connected_error(self):
         """Test NotConnectedError when not connected."""
-        from pyiec61850.tase2 import TASE2Client, NotConnectedError
+        from pyiec61850.tase2 import NotConnectedError, TASE2Client
 
         client = TASE2Client()
         with self.assertRaises(NotConnectedError):
@@ -389,7 +380,7 @@ class TestTASE2Client(unittest.TestCase):
 
     def test_client_state(self):
         """Test client state property."""
-        from pyiec61850.tase2 import TASE2Client, STATE_DISCONNECTED
+        from pyiec61850.tase2 import STATE_DISCONNECTED, TASE2Client
 
         client = TASE2Client()
         self.assertEqual(client.state, STATE_DISCONNECTED)
@@ -429,11 +420,13 @@ class TestTASE2Exceptions(unittest.TestCase):
 
     def test_tase2_connection_error(self):
         """Test TASE2ConnectionError (non-shadowing exception name)."""
-        from pyiec61850.tase2 import TASE2ConnectionError, ConnectionError
+        from pyiec61850.tase2 import ConnectionError, TASE2ConnectionError
 
         # TASE2ConnectionError should be the base class
-        self.assertTrue(issubclass(ConnectionError, TASE2ConnectionError) or
-                       ConnectionError is TASE2ConnectionError)
+        self.assertTrue(
+            issubclass(ConnectionError, TASE2ConnectionError)
+            or ConnectionError is TASE2ConnectionError
+        )
 
     def test_tase2_timeout_error(self):
         """Test TASE2TimeoutError (non-shadowing exception name)."""
@@ -460,10 +453,11 @@ class TestTASE2Exceptions(unittest.TestCase):
         """Test control error inheritance."""
         from pyiec61850.tase2 import (
             ControlError,
-            SelectError,
             OperateError,
+            SelectError,
             TagError,
         )
+
         self.assertTrue(issubclass(SelectError, ControlError))
         self.assertTrue(issubclass(OperateError, ControlError))
         self.assertTrue(issubclass(TagError, ControlError))
@@ -475,12 +469,13 @@ class TestTASE2Constants(unittest.TestCase):
     def test_point_types(self):
         """Test point type constants (IEC 60870-6 compliant ordering)."""
         from pyiec61850.tase2 import (
-            POINT_TYPE_STATE,
-            POINT_TYPE_STATE_SUPPLEMENTAL,
             POINT_TYPE_DISCRETE,
             POINT_TYPE_REAL,
+            POINT_TYPE_STATE,
+            POINT_TYPE_STATE_SUPPLEMENTAL,
             POINT_TYPES,
         )
+
         # IEC 60870-6 ordering: STATE=1, STATE_SUPPLEMENTAL=2, DISCRETE=3, REAL=4
         self.assertEqual(POINT_TYPE_STATE, 1)
         self.assertEqual(POINT_TYPE_STATE_SUPPLEMENTAL, 2)
@@ -492,10 +487,9 @@ class TestTASE2Constants(unittest.TestCase):
         """Test control type constants."""
         from pyiec61850.tase2 import (
             CONTROL_TYPE_COMMAND,
-            CONTROL_TYPE_SETPOINT_REAL,
-            CONTROL_TYPE_SETPOINT_DISCRETE,
             CONTROL_TYPES,
         )
+
         self.assertEqual(CONTROL_TYPE_COMMAND, 1)
         self.assertIn(CONTROL_TYPE_COMMAND, CONTROL_TYPES)
 
@@ -504,11 +498,10 @@ class TestTASE2Constants(unittest.TestCase):
         from pyiec61850.tase2 import (
             BLOCK_1,
             BLOCK_2,
-            BLOCK_3,
-            BLOCK_4,
             BLOCK_5,
             CONFORMANCE_BLOCKS,
         )
+
         self.assertEqual(BLOCK_1, 1)
         self.assertEqual(BLOCK_2, 2)
         self.assertEqual(BLOCK_5, 5)
@@ -519,20 +512,20 @@ class TestTASE2Constants(unittest.TestCase):
         from pyiec61850.tase2 import (
             QUALITY_GOOD,
             QUALITY_INVALID,
-            QUALITY_HELD,
-            QUALITY_SUSPECT,
         )
+
         self.assertEqual(QUALITY_GOOD, "GOOD")
         self.assertEqual(QUALITY_INVALID, "INVALID")
 
     def test_tag_values(self):
         """Test tag value constants per libtase2 Tase2_TagValue."""
         from pyiec61850.tase2 import (
-            TAG_NONE,
-            TAG_OPEN_AND_CLOSE_INHIBIT,
             TAG_CLOSE_ONLY_INHIBIT,
             TAG_INVALID,
+            TAG_NONE,
+            TAG_OPEN_AND_CLOSE_INHIBIT,
         )
+
         # Per libtase2: NO_TAG=0, OPEN_AND_CLOSE_INHIBIT=1, CLOSE_ONLY_INHIBIT=2, INVALID=3
         self.assertEqual(TAG_NONE, 0)
         self.assertEqual(TAG_OPEN_AND_CLOSE_INHIBIT, 1)
@@ -542,18 +535,18 @@ class TestTASE2Constants(unittest.TestCase):
     def test_command_values(self):
         """Test command value constants."""
         from pyiec61850.tase2 import CMD_OFF, CMD_ON
+
         self.assertEqual(CMD_OFF, 0)
         self.assertEqual(CMD_ON, 1)
 
     def test_client_states(self):
         """Test client state constants."""
         from pyiec61850.tase2 import (
-            STATE_DISCONNECTED,
-            STATE_CONNECTING,
-            STATE_CONNECTED,
-            STATE_CLOSING,
             CLIENT_STATES,
+            STATE_CONNECTED,
+            STATE_DISCONNECTED,
         )
+
         self.assertEqual(STATE_DISCONNECTED, 0)
         self.assertEqual(STATE_CONNECTED, 2)
         self.assertIn(STATE_CONNECTED, CLIENT_STATES)
@@ -562,9 +555,10 @@ class TestTASE2Constants(unittest.TestCase):
         """Test protocol limit constants."""
         from pyiec61850.tase2 import (
             MAX_DATA_SET_SIZE,
-            SBO_TIMEOUT,
             MAX_POINT_NAME_LENGTH,
+            SBO_TIMEOUT,
         )
+
         # Per IEC 60870-6
         self.assertEqual(MAX_DATA_SET_SIZE, 500)
         self.assertEqual(SBO_TIMEOUT, 30)
@@ -587,9 +581,9 @@ class TestPointNameValidation(unittest.TestCase):
             "P",
             "ABC_123_xyz",
             "a" * 32,  # Max length
-            "Device$SBO",       # $ is valid per ISO 9506-2 Section 2.6.2
-            "TS1$Interval",     # Common TASE.2 naming pattern
-            "$GlobalVar",       # $ at start is valid (not a digit)
+            "Device$SBO",  # $ is valid per ISO 9506-2 Section 2.6.2
+            "TS1$Interval",  # Common TASE.2 naming pattern
+            "$GlobalVar",  # $ at start is valid (not a digit)
         ]
 
         for name in valid_names:
@@ -600,14 +594,14 @@ class TestPointNameValidation(unittest.TestCase):
         from pyiec61850.tase2.client import _validate_point_name
 
         invalid_names = [
-            "",           # Empty
-            "1Point",     # Starts with digit
-            "123",        # All digits
-            "Point-1",    # Contains hyphen
-            "Point.1",    # Contains dot
-            "Point 1",    # Contains space
-            "Point@1",    # Contains special char
-            "a" * 33,     # Too long
+            "",  # Empty
+            "1Point",  # Starts with digit
+            "123",  # All digits
+            "Point-1",  # Contains hyphen
+            "Point.1",  # Contains dot
+            "Point 1",  # Contains space
+            "Point@1",  # Contains special char
+            "a" * 33,  # Too long
         ]
 
         for name in invalid_names:
@@ -620,7 +614,7 @@ class TestTASE2ClientMethods(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         # Patch the MmsConnectionWrapper
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_wrapper_class.return_value = self.mock_connection
@@ -640,9 +634,7 @@ class TestTASE2ClientMethods(unittest.TestCase):
         result = client.connect("192.168.1.100", port=102)
 
         self.assertTrue(result)
-        self.mock_connection.connect.assert_called_once_with(
-            "192.168.1.100", 102, 10000
-        )
+        self.mock_connection.connect.assert_called_once_with("192.168.1.100", 102, 10000)
 
     def test_disconnect(self):
         """Test disconnect method."""
@@ -679,9 +671,7 @@ class TestTASE2ClientMethods(unittest.TestCase):
         pv = client.read_point("ICC1", "Voltage")
 
         self.assertEqual(pv.value, 230.5)
-        self.mock_connection.read_variable.assert_called_once_with(
-            "ICC1", "Voltage"
-        )
+        self.mock_connection.read_variable.assert_called_once_with("ICC1", "Voltage")
 
 
 class TestTASE2ControlOperations(unittest.TestCase):
@@ -689,7 +679,7 @@ class TestTASE2ControlOperations(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures with mocked connection."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -715,7 +705,7 @@ class TestTASE2ControlOperations(unittest.TestCase):
 
     def test_select_device_not_connected(self):
         """Test select_device raises error when not connected."""
-        from pyiec61850.tase2 import TASE2Client, NotConnectedError
+        from pyiec61850.tase2 import NotConnectedError, TASE2Client
 
         self.mock_connection.is_connected = False
 
@@ -740,8 +730,9 @@ class TestTASE2ControlOperations(unittest.TestCase):
 
     def test_operate_device_sbo_timeout(self):
         """Test operate_device raises error when SBO select has timed out."""
-        from pyiec61850.tase2 import TASE2Client, OperateError
         import time
+
+        from pyiec61850.tase2 import OperateError, TASE2Client
 
         self.mock_connection.write_variable.return_value = True
 
@@ -756,7 +747,7 @@ class TestTASE2ControlOperations(unittest.TestCase):
 
     def test_send_command_on(self):
         """Test sending ON command."""
-        from pyiec61850.tase2 import TASE2Client, CMD_ON
+        from pyiec61850.tase2 import CMD_ON, TASE2Client
 
         self.mock_connection.write_variable.return_value = True
 
@@ -768,7 +759,7 @@ class TestTASE2ControlOperations(unittest.TestCase):
 
     def test_send_command_off(self):
         """Test sending OFF command."""
-        from pyiec61850.tase2 import TASE2Client, CMD_OFF
+        from pyiec61850.tase2 import CMD_OFF, TASE2Client
 
         self.mock_connection.write_variable.return_value = True
 
@@ -788,9 +779,7 @@ class TestTASE2ControlOperations(unittest.TestCase):
         result = client.send_setpoint_real("ICC1", "VoltageSetpoint", 115.5)
 
         self.assertTrue(result)
-        self.mock_connection.write_variable.assert_called_with(
-            "ICC1", "VoltageSetpoint", 115.5
-        )
+        self.mock_connection.write_variable.assert_called_with("ICC1", "VoltageSetpoint", 115.5)
 
     def test_send_setpoint_discrete(self):
         """Test sending discrete setpoint value."""
@@ -802,13 +791,11 @@ class TestTASE2ControlOperations(unittest.TestCase):
         result = client.send_setpoint_discrete("ICC1", "TapPosition", 5)
 
         self.assertTrue(result)
-        self.mock_connection.write_variable.assert_called_with(
-            "ICC1", "TapPosition", 5
-        )
+        self.mock_connection.write_variable.assert_called_with("ICC1", "TapPosition", 5)
 
     def test_set_tag(self):
         """Test setting device tag."""
-        from pyiec61850.tase2 import TASE2Client, TAG_OPEN_AND_CLOSE_INHIBIT
+        from pyiec61850.tase2 import TAG_OPEN_AND_CLOSE_INHIBIT, TASE2Client
 
         self.mock_connection.write_variable.return_value = True
 
@@ -819,7 +806,7 @@ class TestTASE2ControlOperations(unittest.TestCase):
 
     def test_device_blocked_error(self):
         """Test OperateError when device write fails."""
-        from pyiec61850.tase2 import TASE2Client, OperateError
+        from pyiec61850.tase2 import OperateError, TASE2Client
 
         self.mock_connection.write_variable.side_effect = Exception("Access denied")
 
@@ -833,7 +820,7 @@ class TestTASE2TransferSets(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -866,7 +853,7 @@ class TestTASE2TransferSets(unittest.TestCase):
 
     def test_get_transfer_set_details(self):
         """Test reading transfer set configuration."""
-        from pyiec61850.tase2 import TASE2Client, PointValue
+        from pyiec61850.tase2 import TASE2Client
 
         # Mock reading config variables
         def mock_read(domain, name):
@@ -924,7 +911,7 @@ class TestTASE2DataOperations(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -944,9 +931,7 @@ class TestTASE2DataOperations(unittest.TestCase):
         result = client.write_point("ICC1", "Setpoint1", 100.5)
 
         self.assertTrue(result)
-        self.mock_connection.write_variable.assert_called_with(
-            "ICC1", "Setpoint1", 100.5
-        )
+        self.mock_connection.write_variable.assert_called_with("ICC1", "Setpoint1", 100.5)
 
     def test_write_point_failure(self):
         """Test write failure raises WriteError."""
@@ -974,7 +959,7 @@ class TestTASE2DataOperations(unittest.TestCase):
 
     def test_read_points_partial_failure(self):
         """Test batch read with some failures."""
-        from pyiec61850.tase2 import TASE2Client, QUALITY_INVALID
+        from pyiec61850.tase2 import QUALITY_INVALID, TASE2Client
 
         def mock_read(domain, name):
             if name == "Current":
@@ -1025,7 +1010,7 @@ class TestTASE2Discovery(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -1051,7 +1036,7 @@ class TestTASE2Discovery(unittest.TestCase):
 
     def test_get_domain_not_found(self):
         """Test DomainNotFoundError when domain doesn't exist."""
-        from pyiec61850.tase2 import TASE2Client, DomainNotFoundError
+        from pyiec61850.tase2 import DomainNotFoundError, TASE2Client
 
         self.mock_connection.get_domain_names.return_value = ["VCC", "ICC1"]
         self.mock_connection.get_domain_variables.return_value = []
@@ -1125,7 +1110,7 @@ class TestTASE2ErrorHandling(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_wrapper_class.return_value = self.mock_connection
@@ -1136,7 +1121,7 @@ class TestTASE2ErrorHandling(unittest.TestCase):
 
     def test_connection_timeout(self):
         """Test connection timeout handling."""
-        from pyiec61850.tase2 import TASE2Client, ConnectionFailedError
+        from pyiec61850.tase2 import ConnectionFailedError, TASE2Client
 
         self.mock_connection.connect.side_effect = ConnectionFailedError(
             "192.168.1.100", 102, "timeout"
@@ -1148,7 +1133,7 @@ class TestTASE2ErrorHandling(unittest.TestCase):
 
     def test_read_error_access_denied(self):
         """Test ReadError when access denied."""
-        from pyiec61850.tase2 import TASE2Client, ReadError
+        from pyiec61850.tase2 import ReadError, TASE2Client
 
         self.mock_connection.is_connected = True
         self.mock_connection.read_variable.side_effect = Exception("Access denied")
@@ -1161,7 +1146,6 @@ class TestTASE2ErrorHandling(unittest.TestCase):
 
     def test_invalid_parameter_handling(self):
         """Test handling of invalid parameters."""
-        from pyiec61850.tase2 import TASE2Client
         from pyiec61850.tase2.client import _validate_point_name
 
         # Invalid point names
@@ -1193,16 +1177,10 @@ class TestMmsConnectionWrapper(unittest.TestCase):
         if not is_available():
             # Library not available, verify it raises appropriate error
             with self.assertRaises(LibraryNotFoundError):
-                MmsConnectionWrapper(
-                    local_ap_title="1.1.1.999",
-                    remote_ap_title="1.1.1.998"
-                )
+                MmsConnectionWrapper(local_ap_title="1.1.1.999", remote_ap_title="1.1.1.998")
         else:
             # Library available, test normal creation
-            wrapper = MmsConnectionWrapper(
-                local_ap_title="1.1.1.999",
-                remote_ap_title="1.1.1.998"
-            )
+            wrapper = MmsConnectionWrapper(local_ap_title="1.1.1.999", remote_ap_title="1.1.1.998")
             self.assertFalse(wrapper.is_connected)
 
     def test_wrapper_is_available(self):
@@ -1214,8 +1192,8 @@ class TestMmsConnectionWrapper(unittest.TestCase):
 
     def test_wrapper_state_disconnected(self):
         """Test wrapper state when disconnected."""
-        from pyiec61850.tase2.connection import MmsConnectionWrapper, is_available
         from pyiec61850.tase2 import STATE_DISCONNECTED
+        from pyiec61850.tase2.connection import MmsConnectionWrapper, is_available
         from pyiec61850.tase2.exceptions import LibraryNotFoundError
 
         if not is_available():
@@ -1233,7 +1211,7 @@ class TestTASE2SecurityAnalysis(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -1334,7 +1312,6 @@ class TestConnectionStateTracking(unittest.TestCase):
     def test_state_callback_error_handling(self):
         """Test that callback errors don't crash state tracking."""
         from pyiec61850.tase2.connection import MmsConnectionWrapper, is_available
-        from pyiec61850.tase2.exceptions import LibraryNotFoundError
 
         if not is_available():
             self.skipTest("pyiec61850 not available")
@@ -1353,7 +1330,7 @@ class TestConnectionLossNotification(unittest.TestCase):
     """Test Phase 1: Connection loss notification in client."""
 
     def setUp(self):
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -1366,7 +1343,7 @@ class TestConnectionLossNotification(unittest.TestCase):
 
     def test_connection_lost_callback_fires(self):
         """Test user callback fires on connection loss."""
-        from pyiec61850.tase2 import TASE2Client, STATE_CONNECTED, STATE_DISCONNECTED
+        from pyiec61850.tase2 import STATE_CONNECTED, STATE_DISCONNECTED, TASE2Client
 
         callback_fired = []
         client = TASE2Client()
@@ -1379,7 +1356,7 @@ class TestConnectionLossNotification(unittest.TestCase):
 
     def test_connection_lost_clears_sbo(self):
         """Test connection loss clears SBO state."""
-        from pyiec61850.tase2 import TASE2Client, STATE_CONNECTED, STATE_DISCONNECTED
+        from pyiec61850.tase2 import STATE_CONNECTED, STATE_DISCONNECTED, TASE2Client
 
         client = TASE2Client()
         client._sbo_select_times["ICC1/Breaker1"] = 12345.0
@@ -1395,7 +1372,9 @@ class TestConnectionLossNotification(unittest.TestCase):
         client = TASE2Client()
         self.assertIsNone(client.on_connection_lost)
 
-        handler = lambda: None
+        def handler():
+            return None
+
         client.on_connection_lost = handler
         self.assertEqual(client.on_connection_lost, handler)
 
@@ -1405,11 +1384,12 @@ class TestErrorMapping(unittest.TestCase):
 
     def test_map_access_denied(self):
         """Test ACCESS_DENIED maps to AccessDeniedError."""
-        from pyiec61850.tase2.exceptions import map_ied_error, AccessDeniedError
+        from pyiec61850.tase2.exceptions import AccessDeniedError, map_ied_error
 
         try:
             import pyiec61850.pyiec61850 as iec61850
-            code = getattr(iec61850, 'IED_ERROR_ACCESS_DENIED', 3)
+
+            code = getattr(iec61850, "IED_ERROR_ACCESS_DENIED", 3)
         except ImportError:
             code = 3
 
@@ -1418,11 +1398,12 @@ class TestErrorMapping(unittest.TestCase):
 
     def test_map_timeout(self):
         """Test TIMEOUT maps to TASE2TimeoutError."""
-        from pyiec61850.tase2.exceptions import map_ied_error, TASE2TimeoutError
+        from pyiec61850.tase2.exceptions import TASE2TimeoutError, map_ied_error
 
         try:
             import pyiec61850.pyiec61850 as iec61850
-            code = getattr(iec61850, 'IED_ERROR_TIMEOUT', 7)
+
+            code = getattr(iec61850, "IED_ERROR_TIMEOUT", 7)
         except ImportError:
             code = 7
 
@@ -1431,11 +1412,12 @@ class TestErrorMapping(unittest.TestCase):
 
     def test_map_connection_lost(self):
         """Test CONNECTION_LOST maps to ConnectionClosedError."""
-        from pyiec61850.tase2.exceptions import map_ied_error, ConnectionClosedError
+        from pyiec61850.tase2.exceptions import ConnectionClosedError, map_ied_error
 
         try:
             import pyiec61850.pyiec61850 as iec61850
-            code = getattr(iec61850, 'IED_ERROR_CONNECTION_LOST', 10)
+
+            code = getattr(iec61850, "IED_ERROR_CONNECTION_LOST", 10)
         except ImportError:
             code = 10
 
@@ -1444,11 +1426,12 @@ class TestErrorMapping(unittest.TestCase):
 
     def test_map_object_not_found(self):
         """Test OBJECT_DOES_NOT_EXIST maps to VariableNotFoundError."""
-        from pyiec61850.tase2.exceptions import map_ied_error, VariableNotFoundError
+        from pyiec61850.tase2.exceptions import VariableNotFoundError, map_ied_error
 
         try:
             import pyiec61850.pyiec61850 as iec61850
-            code = getattr(iec61850, 'IED_ERROR_OBJECT_DOES_NOT_EXIST', 5)
+
+            code = getattr(iec61850, "IED_ERROR_OBJECT_DOES_NOT_EXIST", 5)
         except ImportError:
             code = 5
 
@@ -1457,7 +1440,7 @@ class TestErrorMapping(unittest.TestCase):
 
     def test_map_unknown_error(self):
         """Test unknown error code returns TASE2Error."""
-        from pyiec61850.tase2.exceptions import map_ied_error, TASE2Error
+        from pyiec61850.tase2.exceptions import TASE2Error, map_ied_error
 
         err = map_ied_error(999, "unknown op")
         self.assertIsInstance(err, TASE2Error)
@@ -1468,7 +1451,7 @@ class TestDataSetLifecycle(unittest.TestCase):
     """Test Phase 2: Data set create/delete operations."""
 
     def setUp(self):
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -1502,7 +1485,7 @@ class TestDataSetLifecycle(unittest.TestCase):
 
     def test_create_data_set_exceeds_limit(self):
         """Test creating data set exceeding TASE.2 limit raises error."""
-        from pyiec61850.tase2 import TASE2Client, TASE2Error, MAX_DATA_SET_SIZE
+        from pyiec61850.tase2 import MAX_DATA_SET_SIZE, TASE2Client, TASE2Error
 
         client = TASE2Client()
         members = [f"Var{i}" for i in range(MAX_DATA_SET_SIZE + 1)]
@@ -1530,9 +1513,6 @@ class TestTransferSetStandard(unittest.TestCase):
         from pyiec61850.tase2 import (
             DSTS_VAR_DATA_SET_NAME,
             DSTS_VAR_INTERVAL,
-            DSTS_VAR_INTEGRITY_CHECK,
-            DSTS_VAR_BUFFER_TIME,
-            DSTS_VAR_DS_CONDITIONS,
             DSTS_VAR_RBE,
             DSTS_VAR_STATUS,
             TRANSFER_REPORT_ACK,
@@ -1550,7 +1530,7 @@ class TestTransferSetStandard(unittest.TestCase):
         """Test enable_transfer_set tries DSTransferSet_Status first."""
         from pyiec61850.tase2 import TASE2Client
 
-        patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         mock_wrapper_class = patcher.start()
         mock_conn = MagicMock()
         mock_conn.is_connected = True
@@ -1580,9 +1560,7 @@ class TestDSTransferSetConfig(unittest.TestCase):
             data_set_name="MyDS",
             interval=10,
             rbe=True,
-            ds_conditions=TransferSetConditions(
-                interval_timeout=True, object_change=True
-            ),
+            ds_conditions=TransferSetConditions(interval_timeout=True, object_change=True),
         )
 
         self.assertEqual(config.data_set_name, "MyDS")
@@ -1607,9 +1585,9 @@ class TestDSTransferSetConfig(unittest.TestCase):
 
     def test_configure_transfer_set(self):
         """Test configure_transfer_set writes standard variables."""
-        from pyiec61850.tase2 import TASE2Client, DSTransferSetConfig
+        from pyiec61850.tase2 import DSTransferSetConfig, TASE2Client
 
-        patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         mock_wrapper_class = patcher.start()
         mock_conn = MagicMock()
         mock_conn.is_connected = True
@@ -1635,7 +1613,7 @@ class TestReportQueue(unittest.TestCase):
     """Test Phase 3: Report queue and callback."""
 
     def setUp(self):
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -1683,7 +1661,10 @@ class TestReportQueue(unittest.TestCase):
         from pyiec61850.tase2 import TASE2Client
 
         client = TASE2Client()
-        callback = lambda report: None
+
+        def callback(report):
+            return None
+
         client.set_report_callback(callback)
         self.assertEqual(client._report_callback, callback)
 
@@ -1696,7 +1677,7 @@ class TestTransferReport(unittest.TestCase):
 
     def test_transfer_report_creation(self):
         """Test TransferReport creation."""
-        from pyiec61850.tase2 import TransferReport, PointValue
+        from pyiec61850.tase2 import PointValue, TransferReport
 
         report = TransferReport(
             domain="ICC1",
@@ -1714,8 +1695,9 @@ class TestTransferReport(unittest.TestCase):
 
     def test_transfer_report_serialization(self):
         """Test TransferReport to_dict."""
-        from pyiec61850.tase2 import TransferReport
         from datetime import datetime, timezone
+
+        from pyiec61850.tase2 import TransferReport
 
         ts = datetime(2025, 1, 1, tzinfo=timezone.utc)
         report = TransferReport(
@@ -1736,7 +1718,7 @@ class TestTransferReportACK(unittest.TestCase):
     """Test Phase 3: Transfer Report ACK."""
 
     def setUp(self):
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -1748,7 +1730,7 @@ class TestTransferReportACK(unittest.TestCase):
 
     def test_send_transfer_report_ack(self):
         """Test ACK written to correct variable."""
-        from pyiec61850.tase2 import TASE2Client, TRANSFER_REPORT_ACK
+        from pyiec61850.tase2 import TRANSFER_REPORT_ACK, TASE2Client
 
         self.mock_connection.write_variable.return_value = True
 
@@ -1756,16 +1738,14 @@ class TestTransferReportACK(unittest.TestCase):
         result = client.send_transfer_report_ack("ICC1")
 
         self.assertTrue(result)
-        self.mock_connection.write_variable.assert_called_with(
-            "ICC1", TRANSFER_REPORT_ACK, 1
-        )
+        self.mock_connection.write_variable.assert_called_with("ICC1", TRANSFER_REPORT_ACK, 1)
 
 
 class TestBilateralValidation(unittest.TestCase):
     """Test Phase 4: Post-connect bilateral table reading."""
 
     def setUp(self):
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -1777,7 +1757,7 @@ class TestBilateralValidation(unittest.TestCase):
 
     def test_parse_supported_features(self):
         """Test parsing Supported_Features bitstring."""
-        from pyiec61850.tase2 import TASE2Client, BLOCK_1, BLOCK_2, BLOCK_5
+        from pyiec61850.tase2 import BLOCK_1, BLOCK_2, BLOCK_5, TASE2Client
 
         client = TASE2Client()
         # Per ASN.1 BITSTRING: Block 1=0x80, Block 2=0x40, Block 5=0x08
@@ -1791,18 +1771,19 @@ class TestBilateralValidation(unittest.TestCase):
 
     def test_check_block_support_warning(self):
         """Test _check_block_support logs warning for unsupported blocks."""
-        from pyiec61850.tase2 import TASE2Client, BLOCK_5
         import logging
+
+        from pyiec61850.tase2 import BLOCK_5, TASE2Client
 
         client = TASE2Client()
         client._server_capabilities["supported_blocks"] = [1, 2]
 
         # Reset global logging.disable() set by test_mms.py at module level
-        logger = logging.getLogger('pyiec61850.tase2.client')
+        logger = logging.getLogger("pyiec61850.tase2.client")
         old_manager_disable = logging.root.manager.disable
         logging.disable(logging.NOTSET)
         try:
-            with self.assertLogs(logger, level='WARNING') as cm:
+            with self.assertLogs(logger, level="WARNING") as cm:
                 client._check_block_support(BLOCK_5, "select_device")
             self.assertTrue(any("Block 5" in msg for msg in cm.output))
         finally:
@@ -1810,8 +1791,8 @@ class TestBilateralValidation(unittest.TestCase):
 
     def test_check_block_support_no_warning_when_no_info(self):
         """Test _check_block_support does nothing when no capabilities."""
-        from pyiec61850.tase2 import TASE2Client, BLOCK_5
-        import logging
+
+        from pyiec61850.tase2 import BLOCK_5, TASE2Client
 
         client = TASE2Client()
         # No capabilities loaded - should not warn
@@ -1823,7 +1804,7 @@ class TestSBOCheckBack(unittest.TestCase):
     """Test Phase 4: SBO CheckBack ID capture and echo."""
 
     def setUp(self):
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -1878,9 +1859,9 @@ class TestStructuredValueSizes(unittest.TestCase):
 
     def test_point_value_with_flags_and_timestamp(self):
         """Test PointValue with flags and timestamp."""
-        from pyiec61850.tase2 import PointValue, DataFlags
-        from pyiec61850.tase2 import QUALITY_VALIDITY_VALID
         from datetime import datetime, timezone
+
+        from pyiec61850.tase2 import QUALITY_VALIDITY_VALID, DataFlags, PointValue
 
         ts = datetime(2025, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
         flags = DataFlags(validity=QUALITY_VALIDITY_VALID)
@@ -1907,7 +1888,7 @@ class TestFullTransferSetLifecycle(unittest.TestCase):
     """Test Phase 3: Full transfer set lifecycle (mocked)."""
 
     def setUp(self):
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -1923,8 +1904,11 @@ class TestFullTransferSetLifecycle(unittest.TestCase):
     def test_full_lifecycle(self):
         """Test create -> configure -> enable -> receive -> disable -> delete."""
         from pyiec61850.tase2 import (
-            TASE2Client, DSTransferSetConfig, TransferSetConditions,
-            TransferReport, PointValue,
+            DSTransferSetConfig,
+            PointValue,
+            TASE2Client,
+            TransferReport,
+            TransferSetConditions,
         )
 
         client = TASE2Client()
@@ -1938,9 +1922,7 @@ class TestFullTransferSetLifecycle(unittest.TestCase):
             data_set_name="MyDS",
             interval=10,
             rbe=True,
-            ds_conditions=TransferSetConditions(
-                interval_timeout=True, object_change=True
-            ),
+            ds_conditions=TransferSetConditions(interval_timeout=True, object_change=True),
         )
         result = client.configure_transfer_set("ICC1", "TS1", config)
         self.assertTrue(result)
@@ -1988,9 +1970,10 @@ class TestNewImports(unittest.TestCase):
         """Test new data types can be imported."""
         from pyiec61850.tase2 import (
             DSTransferSetConfig,
-            TransferReport,
             SBOState,
+            TransferReport,
         )
+
         self.assertIsNotNone(DSTransferSetConfig)
         self.assertIsNotNone(TransferReport)
         self.assertIsNotNone(SBOState)
@@ -1998,17 +1981,11 @@ class TestNewImports(unittest.TestCase):
     def test_new_constants_import(self):
         """Test new constants can be imported."""
         from pyiec61850.tase2 import (
-            STATE_CHECK_INTERVAL,
             DSTS_VAR_DATA_SET_NAME,
-            DSTS_VAR_INTERVAL,
-            DSTS_VAR_RBE,
-            DSTS_VAR_STATUS,
-            TRANSFER_REPORT_ACK,
-            TRANSFER_REPORT_NACK,
+            STATE_CHECK_INTERVAL,
             SUPPORTED_FEATURES_BLOCK_1,
-            SUPPORTED_FEATURES_BLOCK_2,
-            SUPPORTED_FEATURES_BLOCK_5,
         )
+
         self.assertEqual(STATE_CHECK_INTERVAL, 5.0)
         self.assertIsInstance(DSTS_VAR_DATA_SET_NAME, str)
         self.assertIsInstance(SUPPORTED_FEATURES_BLOCK_1, int)
@@ -2016,11 +1993,13 @@ class TestNewImports(unittest.TestCase):
     def test_map_ied_error_import(self):
         """Test map_ied_error can be imported."""
         from pyiec61850.tase2 import map_ied_error
+
         self.assertTrue(callable(map_ied_error))
 
     def test_version_updated(self):
         """Test version was updated."""
         from pyiec61850.tase2 import __version__
+
         self.assertEqual(__version__, "0.4.0")
 
 
@@ -2030,6 +2009,7 @@ class TestInformationReportParsing(unittest.TestCase):
     def test_py_info_report_handler_creation(self):
         """Test _PyInfoReportHandler can be created."""
         import queue
+
         from pyiec61850.tase2.connection import _PyInfoReportHandler
 
         q = queue.Queue()
@@ -2039,6 +2019,7 @@ class TestInformationReportParsing(unittest.TestCase):
     def test_py_info_report_handler_with_callback(self):
         """Test _PyInfoReportHandler with callback."""
         import queue
+
         from pyiec61850.tase2.connection import _PyInfoReportHandler
 
         q = queue.Queue()
@@ -2057,6 +2038,7 @@ class TestInformationReportParsing(unittest.TestCase):
     def test_py_info_report_handler_trigger_queues_report(self):
         """Test that trigger() puts a TransferReport into the queue."""
         import queue
+
         from pyiec61850.tase2.connection import _PyInfoReportHandler
 
         q = queue.Queue()
@@ -2072,7 +2054,7 @@ class TestReportCallback(unittest.TestCase):
     """Test Phase 3: Report callback invocation."""
 
     def setUp(self):
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -2084,7 +2066,7 @@ class TestReportCallback(unittest.TestCase):
 
     def test_report_callback_called_on_queue_report(self):
         """Test report callback is stored and accessible."""
-        from pyiec61850.tase2 import TASE2Client, TransferReport
+        from pyiec61850.tase2 import TASE2Client
 
         received = []
         client = TASE2Client()
@@ -2110,15 +2092,16 @@ class TestNewConstantExports(unittest.TestCase):
     def test_new_dsts_constants_import(self):
         """Test new DSTS variable name exports."""
         from pyiec61850.tase2 import (
+            DS_CONDITIONS_DETECTED,
+            DSTS_VAR_BLOCK_DATA,
+            DSTS_VAR_CRITICAL,
+            DSTS_VAR_EVENT_CODE_REQUESTED,
             DSTS_VAR_START_TIME,
             DSTS_VAR_TLE,
-            DSTS_VAR_CRITICAL,
-            DSTS_VAR_BLOCK_DATA,
-            DSTS_VAR_EVENT_CODE_REQUESTED,
             NEXT_DS_TRANSFER_SET,
-            DS_CONDITIONS_DETECTED,
             TRANSFER_SET_TIMESTAMP,
         )
+
         self.assertEqual(DSTS_VAR_START_TIME, "DSTransferSet_StartTime")
         self.assertEqual(DSTS_VAR_TLE, "DSTransferSet_TLE")
         self.assertEqual(DSTS_VAR_CRITICAL, "DSTransferSet_Critical")
@@ -2189,8 +2172,9 @@ class TestInformationMessage(unittest.TestCase):
 
     def test_with_timestamp(self):
         """Test InformationMessage with timestamp."""
-        from pyiec61850.tase2 import InformationMessage
         from datetime import datetime, timezone
+
+        from pyiec61850.tase2 import InformationMessage
 
         ts = datetime(2025, 6, 15, 12, 0, 0, tzinfo=timezone.utc)
         msg = InformationMessage(
@@ -2204,8 +2188,9 @@ class TestInformationMessage(unittest.TestCase):
 
     def test_serialization(self):
         """Test InformationMessage to_dict."""
-        from pyiec61850.tase2 import InformationMessage
         from datetime import datetime, timezone
+
+        from pyiec61850.tase2 import InformationMessage
 
         ts = datetime(2025, 1, 1, tzinfo=timezone.utc)
         msg = InformationMessage(
@@ -2329,10 +2314,10 @@ class TestBlock4Constants(unittest.TestCase):
     def test_info_buffer_vars(self):
         """Test Information Buffer variable name constants."""
         from pyiec61850.tase2 import (
-            INFO_BUFF_VAR_NAME,
-            INFO_BUFF_VAR_SIZE,
-            INFO_BUFF_VAR_NEXT_ENTRY,
             INFO_BUFF_VAR_ENTRIES,
+            INFO_BUFF_VAR_NAME,
+            INFO_BUFF_VAR_NEXT_ENTRY,
+            INFO_BUFF_VAR_SIZE,
         )
 
         self.assertEqual(INFO_BUFF_VAR_NAME, "Information_Buffer_Name")
@@ -2343,10 +2328,10 @@ class TestBlock4Constants(unittest.TestCase):
     def test_info_message_vars(self):
         """Test Information Message variable name constants."""
         from pyiec61850.tase2 import (
+            INFO_MSG_VAR_CONTENT,
             INFO_MSG_VAR_INFO_REF,
             INFO_MSG_VAR_LOCAL_REF,
             INFO_MSG_VAR_MSG_ID,
-            INFO_MSG_VAR_CONTENT,
         )
 
         self.assertEqual(INFO_MSG_VAR_INFO_REF, "InfoRef")
@@ -2356,7 +2341,7 @@ class TestBlock4Constants(unittest.TestCase):
 
     def test_block4_limits(self):
         """Test Block 4 limit constants."""
-        from pyiec61850.tase2 import MAX_INFO_MESSAGE_SIZE, DEFAULT_INFO_BUFFER_SIZE
+        from pyiec61850.tase2 import DEFAULT_INFO_BUFFER_SIZE, MAX_INFO_MESSAGE_SIZE
 
         self.assertEqual(MAX_INFO_MESSAGE_SIZE, 65535)
         self.assertEqual(DEFAULT_INFO_BUFFER_SIZE, 64)
@@ -2403,10 +2388,11 @@ class TestBlock4Imports(unittest.TestCase):
     def test_types_import(self):
         """Test Block 4 types can be imported."""
         from pyiec61850.tase2 import (
-            InformationMessage,
             IMTransferSetConfig,
             InformationBuffer,
+            InformationMessage,
         )
+
         self.assertIsNotNone(InformationMessage)
         self.assertIsNotNone(IMTransferSetConfig)
         self.assertIsNotNone(InformationBuffer)
@@ -2414,10 +2400,11 @@ class TestBlock4Imports(unittest.TestCase):
     def test_exceptions_import(self):
         """Test Block 4 exceptions can be imported."""
         from pyiec61850.tase2 import (
-            InformationMessageError,
-            IMTransferSetError,
             IMNotSupportedError,
+            IMTransferSetError,
+            InformationMessageError,
         )
+
         self.assertIsNotNone(InformationMessageError)
         self.assertIsNotNone(IMTransferSetError)
         self.assertIsNotNone(IMNotSupportedError)
@@ -2425,6 +2412,20 @@ class TestBlock4Imports(unittest.TestCase):
     def test_constants_import(self):
         """Test Block 4 constants can be imported."""
         from pyiec61850.tase2 import (
+            IMTS_VAR_NAME,
+            IMTS_VAR_STATUS,
+            INFO_BUFF_VAR_ENTRIES,
+            INFO_BUFF_VAR_NAME,
+            INFO_BUFF_VAR_NEXT_ENTRY,
+            INFO_BUFF_VAR_SIZE,
+            INFO_MSG_VAR_CONTENT,
+            INFO_MSG_VAR_INFO_REF,
+            INFO_MSG_VAR_LOCAL_REF,
+            INFO_MSG_VAR_MSG_ID,
+        )
+
+        # All should be non-None
+        for const in [
             IMTS_VAR_NAME,
             IMTS_VAR_STATUS,
             INFO_BUFF_VAR_NAME,
@@ -2435,21 +2436,13 @@ class TestBlock4Imports(unittest.TestCase):
             INFO_MSG_VAR_LOCAL_REF,
             INFO_MSG_VAR_MSG_ID,
             INFO_MSG_VAR_CONTENT,
-            MAX_INFO_MESSAGE_SIZE,
-            DEFAULT_INFO_BUFFER_SIZE,
-            SUPPORTED_FEATURES_BLOCK_4,
-        )
-        # All should be non-None
-        for const in [IMTS_VAR_NAME, IMTS_VAR_STATUS, INFO_BUFF_VAR_NAME,
-                      INFO_BUFF_VAR_SIZE, INFO_BUFF_VAR_NEXT_ENTRY,
-                      INFO_BUFF_VAR_ENTRIES, INFO_MSG_VAR_INFO_REF,
-                      INFO_MSG_VAR_LOCAL_REF, INFO_MSG_VAR_MSG_ID,
-                      INFO_MSG_VAR_CONTENT]:
+        ]:
             self.assertIsNotNone(const)
 
     def test_version_updated(self):
         """Test version was updated for Block 4."""
         from pyiec61850.tase2 import __version__
+
         self.assertEqual(__version__, "0.4.0")
 
 
@@ -2458,7 +2451,7 @@ class TestIMTransferSet(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -2507,7 +2500,7 @@ class TestIMTransferSet(unittest.TestCase):
 
     def test_enable_im_transfer_set_failure(self):
         """Test IM Transfer Set enable failure raises error."""
-        from pyiec61850.tase2 import TASE2Client, IMTransferSetError
+        from pyiec61850.tase2 import IMTransferSetError, TASE2Client
 
         self.mock_connection.write_variable.side_effect = Exception("Write failed")
         self.mock_connection.get_domain_names.return_value = ["VCC"]
@@ -2535,7 +2528,7 @@ class TestIMTransferSet(unittest.TestCase):
 
     def test_disable_im_transfer_set_failure(self):
         """Test IM Transfer Set disable failure raises error."""
-        from pyiec61850.tase2 import TASE2Client, IMTransferSetError
+        from pyiec61850.tase2 import IMTransferSetError, TASE2Client
 
         self.mock_connection.write_variable.side_effect = Exception("Write failed")
         self.mock_connection.get_domain_names.return_value = ["VCC"]
@@ -2574,7 +2567,7 @@ class TestIMTransferSet(unittest.TestCase):
 
     def test_not_connected_raises_error(self):
         """Test IM Transfer Set operations require connection."""
-        from pyiec61850.tase2 import TASE2Client, NotConnectedError
+        from pyiec61850.tase2 import NotConnectedError, TASE2Client
 
         self.mock_connection.is_connected = False
 
@@ -2597,7 +2590,7 @@ class TestInfoMessageOperations(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -2616,8 +2609,7 @@ class TestInfoMessageOperations(unittest.TestCase):
 
         client = TASE2Client()
         result = client.send_info_message(
-            "ICC1", info_ref=1, local_ref=2, msg_id=100,
-            content=b"System status: normal"
+            "ICC1", info_ref=1, local_ref=2, msg_id=100, content=b"System status: normal"
         )
         self.assertTrue(result)
         # Should have written reference fields + content
@@ -2631,35 +2623,28 @@ class TestInfoMessageOperations(unittest.TestCase):
 
         client = TASE2Client()
         result = client.send_info_message(
-            "ICC1", info_ref=1, local_ref=1, msg_id=1,
-            content="Text message"
+            "ICC1", info_ref=1, local_ref=1, msg_id=1, content="Text message"
         )
         self.assertTrue(result)
 
     def test_send_info_message_too_large(self):
         """Test sending oversized message raises error."""
-        from pyiec61850.tase2 import TASE2Client, InformationMessageError
+        from pyiec61850.tase2 import InformationMessageError, TASE2Client
 
         client = TASE2Client()
         big_content = b"x" * 70000
         with self.assertRaises(InformationMessageError):
-            client.send_info_message(
-                "ICC1", info_ref=1, local_ref=1, msg_id=1,
-                content=big_content
-            )
+            client.send_info_message("ICC1", info_ref=1, local_ref=1, msg_id=1, content=big_content)
 
     def test_send_info_message_all_writes_fail(self):
         """Test send_info_message raises error when all writes fail."""
-        from pyiec61850.tase2 import TASE2Client, InformationMessageError
+        from pyiec61850.tase2 import InformationMessageError, TASE2Client
 
         self.mock_connection.write_variable.side_effect = Exception("Write failed")
 
         client = TASE2Client()
         with self.assertRaises(InformationMessageError):
-            client.send_info_message(
-                "ICC1", info_ref=1, local_ref=1, msg_id=1,
-                content=b"test"
-            )
+            client.send_info_message("ICC1", info_ref=1, local_ref=1, msg_id=1, content=b"test")
 
     def test_get_info_messages_empty(self):
         """Test get_info_messages returns empty list when no messages."""
@@ -2673,18 +2658,14 @@ class TestInfoMessageOperations(unittest.TestCase):
 
     def test_get_info_messages_from_queue(self):
         """Test get_info_messages returns queued messages."""
-        from pyiec61850.tase2 import TASE2Client, InformationMessage
+        from pyiec61850.tase2 import InformationMessage, TASE2Client
 
         self.mock_connection.read_variable.side_effect = Exception("Not found")
 
         client = TASE2Client()
         # Pre-queue some messages
-        client._im_message_queue.put(
-            InformationMessage(info_ref=1, content=b"msg1")
-        )
-        client._im_message_queue.put(
-            InformationMessage(info_ref=2, content=b"msg2")
-        )
+        client._im_message_queue.put(InformationMessage(info_ref=1, content=b"msg1"))
+        client._im_message_queue.put(InformationMessage(info_ref=2, content=b"msg2"))
 
         messages = client.get_info_messages("ICC1")
         self.assertEqual(len(messages), 2)
@@ -2693,14 +2674,12 @@ class TestInfoMessageOperations(unittest.TestCase):
 
     def test_get_info_message_by_ref_found(self):
         """Test get_info_message_by_ref finds queued message."""
-        from pyiec61850.tase2 import TASE2Client, InformationMessage
+        from pyiec61850.tase2 import InformationMessage, TASE2Client
 
         self.mock_connection.read_variable.side_effect = Exception("Not found")
 
         client = TASE2Client()
-        client._im_message_queue.put(
-            InformationMessage(info_ref=42, content=b"target message")
-        )
+        client._im_message_queue.put(InformationMessage(info_ref=42, content=b"target message"))
 
         msg = client.get_info_message_by_ref("ICC1", info_ref=42)
         self.assertIsNotNone(msg)
@@ -2735,12 +2714,10 @@ class TestInfoMessageOperations(unittest.TestCase):
 
     def test_get_next_info_message_queued(self):
         """Test get_next_info_message returns queued message."""
-        from pyiec61850.tase2 import TASE2Client, InformationMessage
+        from pyiec61850.tase2 import InformationMessage, TASE2Client
 
         client = TASE2Client()
-        client._im_message_queue.put(
-            InformationMessage(info_ref=5, content=b"queued msg")
-        )
+        client._im_message_queue.put(InformationMessage(info_ref=5, content=b"queued msg"))
 
         msg = client.get_next_info_message(timeout=1.0)
         self.assertIsNotNone(msg)
@@ -2751,7 +2728,10 @@ class TestInfoMessageOperations(unittest.TestCase):
         from pyiec61850.tase2 import TASE2Client
 
         client = TASE2Client()
-        callback = lambda msg: None
+
+        def callback(msg):
+            return None
+
         client.set_im_message_callback(callback)
         self.assertEqual(client._im_message_callback, callback)
 
@@ -2760,15 +2740,13 @@ class TestInfoMessageOperations(unittest.TestCase):
 
     def test_not_connected_send(self):
         """Test send_info_message raises NotConnectedError."""
-        from pyiec61850.tase2 import TASE2Client, NotConnectedError
+        from pyiec61850.tase2 import NotConnectedError, TASE2Client
 
         self.mock_connection.is_connected = False
 
         client = TASE2Client()
         with self.assertRaises(NotConnectedError):
-            client.send_info_message(
-                "ICC1", info_ref=1, local_ref=1, msg_id=1, content=b"test"
-            )
+            client.send_info_message("ICC1", info_ref=1, local_ref=1, msg_id=1, content=b"test")
 
 
 class TestInfoBufferOperations(unittest.TestCase):
@@ -2776,7 +2754,7 @@ class TestInfoBufferOperations(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -2810,9 +2788,7 @@ class TestInfoBufferOperations(unittest.TestCase):
         """Test get_info_buffers returns empty when no buffers found."""
         from pyiec61850.tase2 import TASE2Client
 
-        self.mock_connection.get_domain_variables.return_value = [
-            "Voltage", "Current", "Power"
-        ]
+        self.mock_connection.get_domain_variables.return_value = ["Voltage", "Current", "Power"]
 
         client = TASE2Client()
         buffers = client.get_info_buffers("ICC1")
@@ -2824,7 +2800,7 @@ class TestBlock4FileOperations(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -2857,7 +2833,7 @@ class TestBlock4FileOperations(unittest.TestCase):
         self.mock_connection.get_file_directory.return_value = []
 
         client = TASE2Client()
-        files = client.get_file_directory("/logs")
+        client.get_file_directory("/logs")
 
         self.mock_connection.get_file_directory.assert_called_once_with("/logs")
 
@@ -2879,7 +2855,7 @@ class TestBlock4SupportedFeatures(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -2892,7 +2868,7 @@ class TestBlock4SupportedFeatures(unittest.TestCase):
 
     def test_parse_supported_features_with_block4(self):
         """Test Supported_Features parsing includes Block 4."""
-        from pyiec61850.tase2 import TASE2Client, BLOCK_1, BLOCK_4
+        from pyiec61850.tase2 import BLOCK_1, BLOCK_4, TASE2Client
 
         client = TASE2Client()
         # Per ASN.1 BITSTRING: Block 1=0x80, Block 4=0x10
@@ -2905,9 +2881,7 @@ class TestBlock4SupportedFeatures(unittest.TestCase):
 
     def test_parse_all_blocks(self):
         """Test Supported_Features parsing with all first-octet blocks."""
-        from pyiec61850.tase2 import (
-            TASE2Client, BLOCK_1, BLOCK_2, BLOCK_4, BLOCK_5
-        )
+        from pyiec61850.tase2 import BLOCK_1, BLOCK_2, BLOCK_4, BLOCK_5, TASE2Client
 
         client = TASE2Client()
         # Per ASN.1 BITSTRING: Block 1=0x80, Block 2=0x40, Block 4=0x10, Block 5=0x08
@@ -2926,7 +2900,7 @@ class TestBlock4FullLifecycle(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -2943,7 +2917,7 @@ class TestBlock4FullLifecycle(unittest.TestCase):
 
     def test_full_lifecycle(self):
         """Test enable -> receive -> query -> disable lifecycle."""
-        from pyiec61850.tase2 import TASE2Client, InformationMessage
+        from pyiec61850.tase2 import InformationMessage, TASE2Client
 
         client = TASE2Client()
 
@@ -2960,15 +2934,11 @@ class TestBlock4FullLifecycle(unittest.TestCase):
         # 3. Simulate receiving messages (put in queue)
         client._im_message_queue.put(
             InformationMessage(
-                info_ref=1, local_ref=1, msg_id=1,
-                content=b"Alarm: Voltage out of range"
+                info_ref=1, local_ref=1, msg_id=1, content=b"Alarm: Voltage out of range"
             )
         )
         client._im_message_queue.put(
-            InformationMessage(
-                info_ref=2, local_ref=1, msg_id=2,
-                content=b"Status: System normal"
-            )
+            InformationMessage(info_ref=2, local_ref=1, msg_id=2, content=b"Status: System normal")
         )
 
         # 4. Get messages from queue
@@ -2988,8 +2958,7 @@ class TestBlock4FullLifecycle(unittest.TestCase):
         # 6. Send a message
         self.mock_connection.read_variable.side_effect = Exception("Not found")
         result = client.send_info_message(
-            "ICC1", info_ref=10, local_ref=1, msg_id=50,
-            content=b"Operator note: check breaker"
+            "ICC1", info_ref=10, local_ref=1, msg_id=50, content=b"Operator note: check breaker"
         )
         self.assertTrue(result)
 
@@ -3102,8 +3071,8 @@ class TestClientStatisticsDataclass(unittest.TestCase):
 
     def test_uptime_seconds_with_disconnect(self):
         """Test uptime_seconds uses disconnect_time if available."""
+
         from pyiec61850.tase2 import ClientStatistics
-        from datetime import timedelta
 
         start = datetime(2025, 1, 1, 12, 0, 0)
         end = datetime(2025, 1, 1, 12, 5, 0)
@@ -3155,7 +3124,7 @@ class TestNewConstantsImport(unittest.TestCase):
 
     def test_tag_constants(self):
         """Test tag variable name suffixes."""
-        from pyiec61850.tase2 import TAG_VAR_SUFFIX, TAG_REASON_VAR_SUFFIX
+        from pyiec61850.tase2 import TAG_REASON_VAR_SUFFIX, TAG_VAR_SUFFIX
 
         self.assertEqual(TAG_VAR_SUFFIX, "_TAG")
         self.assertEqual(TAG_REASON_VAR_SUFFIX, "_TagReason")
@@ -3174,7 +3143,7 @@ class TestNewConstantsImport(unittest.TestCase):
 
     def test_new_types_import(self):
         """Test new data types can be imported."""
-        from pyiec61850.tase2 import TagState, ClientStatistics
+        from pyiec61850.tase2 import ClientStatistics, TagState
 
         self.assertIsNotNone(TagState)
         self.assertIsNotNone(ClientStatistics)
@@ -3185,7 +3154,7 @@ class TestGetTag(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -3201,7 +3170,7 @@ class TestGetTag(unittest.TestCase):
 
     def test_get_tag_success(self):
         """Test successful tag read."""
-        from pyiec61850.tase2 import TASE2Client, PointValue, TagState
+        from pyiec61850.tase2 import PointValue, TagState, TASE2Client
 
         client = TASE2Client()
 
@@ -3211,8 +3180,7 @@ class TestGetTag(unittest.TestCase):
                 return PointValue(value=2, quality="GOOD", name=name, domain=domain)
             elif name == "BRK1_TagReason":
                 return PointValue(
-                    value="Under maintenance",
-                    quality="GOOD", name=name, domain=domain
+                    value="Under maintenance", quality="GOOD", name=name, domain=domain
                 )
             raise Exception("Not found")
 
@@ -3228,7 +3196,7 @@ class TestGetTag(unittest.TestCase):
 
     def test_get_tag_no_reason(self):
         """Test tag read without reason string."""
-        from pyiec61850.tase2 import TASE2Client, PointValue, TagState
+        from pyiec61850.tase2 import PointValue, TASE2Client
 
         client = TASE2Client()
 
@@ -3272,7 +3240,7 @@ class TestReadPointsBatch(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -3296,7 +3264,7 @@ class TestReadPointsBatch(unittest.TestCase):
 
     def test_batch_single_point(self):
         """Test batch read with single point delegates to read_point."""
-        from pyiec61850.tase2 import TASE2Client, PointValue
+        from pyiec61850.tase2 import PointValue, TASE2Client
 
         client = TASE2Client()
         pv = PointValue(value=42.0, quality="GOOD", name="Voltage", domain="ICC1")
@@ -3309,7 +3277,7 @@ class TestReadPointsBatch(unittest.TestCase):
 
     def test_batch_exceeds_limit(self):
         """Test batch read raises when exceeding MAX_DATA_SET_SIZE."""
-        from pyiec61850.tase2 import TASE2Client, MAX_DATA_SET_SIZE
+        from pyiec61850.tase2 import MAX_DATA_SET_SIZE, TASE2Client
         from pyiec61850.tase2.exceptions import TASE2Error
 
         client = TASE2Client()
@@ -3324,11 +3292,14 @@ class TestReadPointsBatch(unittest.TestCase):
         client = TASE2Client()
         # Mock read_data_set_values to return raw values
         self.mock_connection.read_data_set_values.return_value = [
-            MagicMock(), MagicMock(), MagicMock()
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
         ]
 
         # Mock _parse_point_value
         from pyiec61850.tase2 import PointValue
+
         client._parse_point_value = MagicMock(
             return_value=PointValue(value=1.0, quality="GOOD", name="P", domain="D")
         )
@@ -3343,17 +3314,14 @@ class TestReadPointsBatch(unittest.TestCase):
         # Verify temp name starts with _pyiec_batch_
         self.assertTrue(call_args[0][1].startswith("_pyiec_batch_"))
         # Verify member refs
-        self.assertEqual(
-            call_args[0][2],
-            ["ICC1/V1", "ICC1/V2", "ICC1/V3"]
-        )
+        self.assertEqual(call_args[0][2], ["ICC1/V1", "ICC1/V2", "ICC1/V3"])
 
         # Verify delete_data_set was called (cleanup)
         self.mock_connection.delete_data_set.assert_called_once()
 
     def test_batch_fallback_on_failure(self):
         """Test batch read falls back to sequential on data set failure."""
-        from pyiec61850.tase2 import TASE2Client, PointValue
+        from pyiec61850.tase2 import PointValue, TASE2Client
 
         client = TASE2Client()
         # Make create_data_set fail
@@ -3383,7 +3351,7 @@ class TestGetTransferSetsNative(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -3399,7 +3367,7 @@ class TestGetTransferSetsNative(unittest.TestCase):
 
     def test_native_discovery_chain(self):
         """Test following Next_DSTransfer_Set chain."""
-        from pyiec61850.tase2 import TASE2Client, PointValue
+        from pyiec61850.tase2 import PointValue, TASE2Client
 
         client = TASE2Client()
 
@@ -3408,21 +3376,13 @@ class TestGetTransferSetsNative(unittest.TestCase):
         def mock_read_point(domain, name):
             call_count[0] += 1
             if name == "Next_DSTransfer_Set":
-                return PointValue(
-                    value="TS1", quality="GOOD", name=name, domain=domain
-                )
+                return PointValue(value="TS1", quality="GOOD", name=name, domain=domain)
             elif name == "TS1_Next_DSTransfer_Set":
-                return PointValue(
-                    value="TS2", quality="GOOD", name=name, domain=domain
-                )
+                return PointValue(value="TS2", quality="GOOD", name=name, domain=domain)
             elif name == "TS2_Next_DSTransfer_Set":
-                return PointValue(
-                    value="", quality="GOOD", name=name, domain=domain
-                )
+                return PointValue(value="", quality="GOOD", name=name, domain=domain)
             elif name.endswith("_Status"):
-                return PointValue(
-                    value=1, quality="GOOD", name=name, domain=domain
-                )
+                return PointValue(value=1, quality="GOOD", name=name, domain=domain)
             raise Exception("Not found")
 
         client.read_point = MagicMock(side_effect=mock_read_point)
@@ -3448,24 +3408,18 @@ class TestGetTransferSetsNative(unittest.TestCase):
 
     def test_native_discovery_circular_detection(self):
         """Test circular reference detection in chain."""
-        from pyiec61850.tase2 import TASE2Client, PointValue
+        from pyiec61850.tase2 import PointValue, TASE2Client
 
         client = TASE2Client()
 
         def mock_read_point(domain, name):
             if name == "Next_DSTransfer_Set":
-                return PointValue(
-                    value="TS1", quality="GOOD", name=name, domain=domain
-                )
+                return PointValue(value="TS1", quality="GOOD", name=name, domain=domain)
             elif name == "TS1_Next_DSTransfer_Set":
                 # Circular: points back to TS1
-                return PointValue(
-                    value="TS1", quality="GOOD", name=name, domain=domain
-                )
+                return PointValue(value="TS1", quality="GOOD", name=name, domain=domain)
             elif name.endswith("_Status"):
-                return PointValue(
-                    value=0, quality="GOOD", name=name, domain=domain
-                )
+                return PointValue(value=0, quality="GOOD", name=name, domain=domain)
             raise Exception("Not found")
 
         client.read_point = MagicMock(side_effect=mock_read_point)
@@ -3491,7 +3445,7 @@ class TestDownloadFile(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -3519,9 +3473,10 @@ class TestDownloadFile(unittest.TestCase):
 
     def test_download_file_with_local_path(self):
         """Test file download saves to local path."""
-        from pyiec61850.tase2 import TASE2Client
-        import tempfile
         import os
+        import tempfile
+
+        from pyiec61850.tase2 import TASE2Client
 
         client = TASE2Client()
         test_data = b"saved file content"
@@ -3533,7 +3488,7 @@ class TestDownloadFile(unittest.TestCase):
         try:
             result = client.download_file("config.txt", local_path=temp_path)
             self.assertEqual(result, test_data)
-            with open(temp_path, 'rb') as f:
+            with open(temp_path, "rb") as f:
                 self.assertEqual(f.read(), test_data)
         finally:
             os.unlink(temp_path)
@@ -3565,7 +3520,7 @@ class TestClientStatistics(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -3581,7 +3536,7 @@ class TestClientStatistics(unittest.TestCase):
 
     def test_get_statistics_initial(self):
         """Test initial statistics are zero."""
-        from pyiec61850.tase2 import TASE2Client, ClientStatistics
+        from pyiec61850.tase2 import ClientStatistics, TASE2Client
 
         client = TASE2Client()
         stats = client.get_statistics()
@@ -3639,7 +3594,7 @@ class TestLocalIdentity(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -3682,7 +3637,7 @@ class TestEditionAwareTimestamps(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -3695,14 +3650,14 @@ class TestEditionAwareTimestamps(unittest.TestCase):
 
     def test_default_edition_is_auto(self):
         """Test default edition is 'auto'."""
-        from pyiec61850.tase2 import TASE2Client, TASE2_EDITION_AUTO
+        from pyiec61850.tase2 import TASE2_EDITION_AUTO, TASE2Client
 
         client = TASE2Client()
         self.assertEqual(client.tase2_edition, TASE2_EDITION_AUTO)
 
     def test_set_edition_1996(self):
         """Test setting edition to 1996."""
-        from pyiec61850.tase2 import TASE2Client, TASE2_EDITION_1996
+        from pyiec61850.tase2 import TASE2_EDITION_1996, TASE2Client
 
         client = TASE2Client()
         client.tase2_edition = TASE2_EDITION_1996
@@ -3710,7 +3665,7 @@ class TestEditionAwareTimestamps(unittest.TestCase):
 
     def test_set_edition_2000(self):
         """Test setting edition to 2000."""
-        from pyiec61850.tase2 import TASE2Client, TASE2_EDITION_2000
+        from pyiec61850.tase2 import TASE2_EDITION_2000, TASE2Client
 
         client = TASE2Client()
         client.tase2_edition = TASE2_EDITION_2000
@@ -3726,7 +3681,7 @@ class TestEditionAwareTimestamps(unittest.TestCase):
 
     def test_convert_timestamp_1996_seconds(self):
         """Test timestamp conversion with 1996 edition (seconds)."""
-        from pyiec61850.tase2 import TASE2Client, TASE2_EDITION_1996
+        from pyiec61850.tase2 import TASE2_EDITION_1996, TASE2Client
 
         client = TASE2Client()
         client.tase2_edition = TASE2_EDITION_1996
@@ -3739,7 +3694,7 @@ class TestEditionAwareTimestamps(unittest.TestCase):
 
     def test_convert_timestamp_2000_milliseconds(self):
         """Test timestamp conversion with 2000 edition (milliseconds)."""
-        from pyiec61850.tase2 import TASE2Client, TASE2_EDITION_2000
+        from pyiec61850.tase2 import TASE2_EDITION_2000, TASE2Client
 
         client = TASE2Client()
         client.tase2_edition = TASE2_EDITION_2000
@@ -3752,7 +3707,7 @@ class TestEditionAwareTimestamps(unittest.TestCase):
 
     def test_convert_timestamp_auto_large_value(self):
         """Test auto-detect with large value (milliseconds)."""
-        from pyiec61850.tase2 import TASE2Client, TASE2_EDITION_AUTO
+        from pyiec61850.tase2 import TASE2_EDITION_AUTO, TASE2Client
 
         client = TASE2Client()
         client.tase2_edition = TASE2_EDITION_AUTO
@@ -3777,7 +3732,7 @@ class TestMaxOutstandingCalls(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -3840,7 +3795,7 @@ class TestRequestTimeout(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -3876,16 +3831,23 @@ class TestV040VersionUpdated(unittest.TestCase):
     def test_version_is_040(self):
         """Test module version is 0.4.0."""
         from pyiec61850.tase2 import __version__
+
         self.assertEqual(__version__, "0.4.0")
 
     def test_new_exports_in_all(self):
         """Test new types are in __all__."""
         from pyiec61850.tase2 import __all__
+
         for name in [
-            "TagState", "ClientStatistics",
-            "TASE2_EDITION_1996", "TASE2_EDITION_2000", "TASE2_EDITION_AUTO",
-            "TAG_VAR_SUFFIX", "TAG_REASON_VAR_SUFFIX",
-            "MAX_FILE_DOWNLOAD_SIZE", "MAX_TRANSFER_SET_CHAIN",
+            "TagState",
+            "ClientStatistics",
+            "TASE2_EDITION_1996",
+            "TASE2_EDITION_2000",
+            "TASE2_EDITION_AUTO",
+            "TAG_VAR_SUFFIX",
+            "TAG_REASON_VAR_SUFFIX",
+            "MAX_FILE_DOWNLOAD_SIZE",
+            "MAX_TRANSFER_SET_CHAIN",
         ]:
             self.assertIn(name, __all__, f"{name} missing from __all__")
 
@@ -3938,7 +3900,7 @@ class TestMultiServerFailover(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -3960,9 +3922,7 @@ class TestMultiServerFailover(unittest.TestCase):
         client = TASE2Client()
         result = client.connect("192.168.1.100", port=102)
         self.assertTrue(result)
-        self.mock_connection.connect.assert_called_once_with(
-            "192.168.1.100", 102, 10000
-        )
+        self.mock_connection.connect.assert_called_once_with("192.168.1.100", 102, 10000)
 
     def test_connect_with_server_list(self):
         """Test connect with list of (host, port) tuples."""
@@ -3976,9 +3936,7 @@ class TestMultiServerFailover(unittest.TestCase):
         result = client.connect(servers, failover=True)
         self.assertTrue(result)
         # Should have connected to first server
-        self.mock_connection.connect.assert_called_once_with(
-            "192.168.1.100", 102, 10000
-        )
+        self.mock_connection.connect.assert_called_once_with("192.168.1.100", 102, 10000)
 
     def test_connect_server_list_failover_to_second(self):
         """Test failover connects to second server when first fails."""
@@ -4005,9 +3963,7 @@ class TestMultiServerFailover(unittest.TestCase):
         from pyiec61850.tase2 import TASE2Client
         from pyiec61850.tase2.exceptions import ConnectionFailedError
 
-        self.mock_connection.connect.side_effect = ConnectionFailedError(
-            "host", 102, "refused"
-        )
+        self.mock_connection.connect.side_effect = ConnectionFailedError("host", 102, "refused")
 
         client = TASE2Client()
         servers = [
@@ -4094,7 +4050,7 @@ class TestConsecutiveErrorCounting(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -4220,7 +4176,7 @@ class TestDataSetTransferMetadata(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -4286,7 +4242,7 @@ class TestEnableTransferSetInitialRead(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -4312,7 +4268,7 @@ class TestEnableTransferSetInitialRead(unittest.TestCase):
 
     def test_enable_with_initial_read(self):
         """Test enable_transfer_set returns tuple with initial_read=True."""
-        from pyiec61850.tase2 import TASE2Client, PointValue
+        from pyiec61850.tase2 import PointValue, TASE2Client
 
         client = TASE2Client()
         mock_values = [
@@ -4335,9 +4291,7 @@ class TestEnableTransferSetInitialRead(unittest.TestCase):
         client = TASE2Client()
         client.get_data_set_values = MagicMock(return_value=[])
 
-        client.enable_transfer_set(
-            "ICC1", "TS1", initial_read=True, data_set_name="MyDS"
-        )
+        client.enable_transfer_set("ICC1", "TS1", initial_read=True, data_set_name="MyDS")
         client.get_data_set_values.assert_called_once_with("ICC1", "MyDS")
 
     def test_enable_initial_read_uses_ts_name_as_default_ds(self):
@@ -4355,9 +4309,7 @@ class TestEnableTransferSetInitialRead(unittest.TestCase):
         from pyiec61850.tase2 import TASE2Client
 
         client = TASE2Client()
-        client.get_data_set_values = MagicMock(
-            side_effect=Exception("read failed")
-        )
+        client.get_data_set_values = MagicMock(side_effect=Exception("read failed"))
 
         result = client.enable_transfer_set("ICC1", "TS1", initial_read=True)
         self.assertIsInstance(result, tuple)
@@ -4370,7 +4322,7 @@ class TestReportAckViaInformationReport(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -4400,9 +4352,7 @@ class TestReportAckViaInformationReport(unittest.TestCase):
 
         client = TASE2Client()
         # sendUnconfirmedPDU is not available in the SWIG bindings
-        result = client.send_transfer_report_ack(
-            "ICC1", transfer_set_name="TS1"
-        )
+        result = client.send_transfer_report_ack("ICC1", transfer_set_name="TS1")
         self.assertTrue(result)
         # Should have fallen through to write-variable
         self.mock_connection.write_variable.assert_called_once()
@@ -4425,10 +4375,10 @@ class TestNewConstantsExported(unittest.TestCase):
     def test_failover_constants(self):
         """Test failover-related constants are importable."""
         from pyiec61850.tase2 import (
-            DEFAULT_FAILOVER_RETRY_COUNT,
             DEFAULT_FAILOVER_DELAY,
-            SERVER_PRIORITY_PRIMARY,
+            DEFAULT_FAILOVER_RETRY_COUNT,
             SERVER_PRIORITY_BACKUP,
+            SERVER_PRIORITY_PRIMARY,
         )
 
         self.assertEqual(DEFAULT_FAILOVER_RETRY_COUNT, 1)
@@ -4481,7 +4431,7 @@ class TestSupportedFeaturesAllBlocks(unittest.TestCase):
     """Test full 9-block Supported_Features parsing and get_server_blocks."""
 
     def setUp(self):
-        self.patcher = patch('pyiec61850.tase2.client.MmsConnectionWrapper')
+        self.patcher = patch("pyiec61850.tase2.client.MmsConnectionWrapper")
         self.mock_wrapper_class = self.patcher.start()
         self.mock_connection = MagicMock()
         self.mock_connection.is_connected = True
@@ -4494,8 +4444,16 @@ class TestSupportedFeaturesAllBlocks(unittest.TestCase):
     def test_all_9_blocks_decoded(self):
         """Test that all 9 block bits are decoded from a 2-octet bitstring."""
         from pyiec61850.tase2 import (
-            TASE2Client, BLOCK_1, BLOCK_2, BLOCK_3, BLOCK_4, BLOCK_5,
-            BLOCK_6, BLOCK_7, BLOCK_8, BLOCK_9,
+            BLOCK_1,
+            BLOCK_2,
+            BLOCK_3,
+            BLOCK_4,
+            BLOCK_5,
+            BLOCK_6,
+            BLOCK_7,
+            BLOCK_8,
+            BLOCK_9,
+            TASE2Client,
         )
 
         client = TASE2Client()
@@ -4506,15 +4464,23 @@ class TestSupportedFeaturesAllBlocks(unittest.TestCase):
         client._parse_supported_features(0x80FF)
 
         blocks = client._server_capabilities["supported_blocks"]
-        for block in [BLOCK_1, BLOCK_2, BLOCK_3, BLOCK_4, BLOCK_5,
-                      BLOCK_6, BLOCK_7, BLOCK_8, BLOCK_9]:
+        for block in [
+            BLOCK_1,
+            BLOCK_2,
+            BLOCK_3,
+            BLOCK_4,
+            BLOCK_5,
+            BLOCK_6,
+            BLOCK_7,
+            BLOCK_8,
+            BLOCK_9,
+        ]:
             self.assertIn(block, blocks, f"Block {block} should be present")
         self.assertEqual(len(blocks), 9)
 
     def test_single_block_bits(self):
         """Test each block bit individually."""
         from pyiec61850.tase2 import (
-            TASE2Client,
             SUPPORTED_FEATURES_BLOCK_1,
             SUPPORTED_FEATURES_BLOCK_2,
             SUPPORTED_FEATURES_BLOCK_3,
@@ -4524,6 +4490,7 @@ class TestSupportedFeaturesAllBlocks(unittest.TestCase):
             SUPPORTED_FEATURES_BLOCK_7,
             SUPPORTED_FEATURES_BLOCK_8,
             SUPPORTED_FEATURES_BLOCK_9,
+            TASE2Client,
         )
 
         expected = [
@@ -4542,8 +4509,9 @@ class TestSupportedFeaturesAllBlocks(unittest.TestCase):
             client = TASE2Client()
             client._parse_supported_features(bitmask)
             blocks = client._server_capabilities["supported_blocks"]
-            self.assertEqual(blocks, [block_num],
-                             f"Bitmask 0x{bitmask:04X} should decode to block {block_num}")
+            self.assertEqual(
+                blocks, [block_num], f"Bitmask 0x{bitmask:04X} should decode to block {block_num}"
+            )
 
     def test_block_bit_values(self):
         """Test SUPPORTED_FEATURES constants have correct bit values."""
@@ -4571,7 +4539,7 @@ class TestSupportedFeaturesAllBlocks(unittest.TestCase):
 
     def test_blocks_6_through_8_first_octet(self):
         """Test blocks 6-8 in the low bits of the first octet."""
-        from pyiec61850.tase2 import TASE2Client, BLOCK_6, BLOCK_7, BLOCK_8
+        from pyiec61850.tase2 import BLOCK_6, BLOCK_7, BLOCK_8, TASE2Client
 
         client = TASE2Client()
         # Blocks 6+7+8 = 0x04 | 0x02 | 0x01 = 0x07
@@ -4595,7 +4563,7 @@ class TestSupportedFeaturesAllBlocks(unittest.TestCase):
 
     def test_typical_d2000_bitstring(self):
         """Test parsing the typical D2000 bitstring (0xC0 = blocks 1+2)."""
-        from pyiec61850.tase2 import TASE2Client, BLOCK_1, BLOCK_2
+        from pyiec61850.tase2 import BLOCK_1, BLOCK_2, TASE2Client
 
         client = TASE2Client()
         client._parse_supported_features(0xC0)
@@ -4659,8 +4627,9 @@ class TestSupportedFeaturesAllBlocks(unittest.TestCase):
 
         # Block 6-9 should NOT be supported
         for block_num in [6, 7, 8, 9]:
-            self.assertFalse(result[block_num]["supported"],
-                             f"Block {block_num} should not be supported")
+            self.assertFalse(
+                result[block_num]["supported"], f"Block {block_num} should not be supported"
+            )
 
     def test_get_server_blocks_no_capabilities(self):
         """Test get_server_blocks returns None for supported when no data."""
@@ -4673,8 +4642,10 @@ class TestSupportedFeaturesAllBlocks(unittest.TestCase):
 
         self.assertEqual(len(result), 9)
         for block_num in range(1, 10):
-            self.assertIsNone(result[block_num]["supported"],
-                              f"Block {block_num} should be None when no capabilities read")
+            self.assertIsNone(
+                result[block_num]["supported"],
+                f"Block {block_num} should be None when no capabilities read",
+            )
 
     def test_get_server_blocks_all_supported(self):
         """Test get_server_blocks when all 9 blocks are supported."""
@@ -4686,8 +4657,9 @@ class TestSupportedFeaturesAllBlocks(unittest.TestCase):
         result = client.get_server_blocks()
 
         for block_num in range(1, 10):
-            self.assertTrue(result[block_num]["supported"],
-                            f"Block {block_num} should be supported")
+            self.assertTrue(
+                result[block_num]["supported"], f"Block {block_num} should be supported"
+            )
 
     def test_get_server_blocks_informative_descriptions(self):
         """Test that blocks 6-9 have informative-since-2014 descriptions."""
@@ -4713,12 +4685,13 @@ class TestSupportedFeaturesAllBlocks(unittest.TestCase):
 
         self.assertEqual(len(CONFORMANCE_BLOCKS), 9)
         for block_num in range(1, 10):
-            self.assertIn(block_num, CONFORMANCE_BLOCKS,
-                          f"Block {block_num} missing from CONFORMANCE_BLOCKS")
+            self.assertIn(
+                block_num, CONFORMANCE_BLOCKS, f"Block {block_num} missing from CONFORMANCE_BLOCKS"
+            )
 
     def test_block_3_renamed_from_reserved(self):
         """Test Block 3 was renamed from RESERVED to BLOCKED_TRANSFERS."""
-        from pyiec61850.tase2 import CONFORMANCE_BLOCKS, BLOCK_3
+        from pyiec61850.tase2 import BLOCK_3, CONFORMANCE_BLOCKS
 
         name, description = CONFORMANCE_BLOCKS[BLOCK_3]
         self.assertEqual(name, "BLOCKED_TRANSFERS")
@@ -4752,12 +4725,17 @@ class TestSupportedFeaturesAllBlocks(unittest.TestCase):
         from pyiec61850.tase2 import __all__
 
         for name in [
-            "BLOCK_6", "BLOCK_7", "BLOCK_8", "BLOCK_9",
-            "SUPPORTED_FEATURES_BLOCK_6", "SUPPORTED_FEATURES_BLOCK_7",
-            "SUPPORTED_FEATURES_BLOCK_8", "SUPPORTED_FEATURES_BLOCK_9",
+            "BLOCK_6",
+            "BLOCK_7",
+            "BLOCK_8",
+            "BLOCK_9",
+            "SUPPORTED_FEATURES_BLOCK_6",
+            "SUPPORTED_FEATURES_BLOCK_7",
+            "SUPPORTED_FEATURES_BLOCK_8",
+            "SUPPORTED_FEATURES_BLOCK_9",
         ]:
             self.assertIn(name, __all__, f"{name} missing from __all__")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

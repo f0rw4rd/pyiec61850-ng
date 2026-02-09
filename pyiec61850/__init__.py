@@ -13,20 +13,20 @@ Submodules:
     - server: IEC 61850 server
 """
 
+import ctypes as _ctypes
 import os as _os
 import sys as _sys
-import ctypes as _ctypes
 
 # Load the bundled libiec61850 shared library before importing SWIG bindings.
 # When installed from a wheel, the .so/.dll lives inside the package directory.
 _package_dir = _os.path.dirname(_os.path.abspath(__file__))
 
-if _sys.platform == 'win32':
-    if hasattr(_os, 'add_dll_directory'):
+if _sys.platform == "win32":
+    if hasattr(_os, "add_dll_directory"):
         _os.add_dll_directory(_package_dir)
-    _os.environ['PATH'] = _package_dir + _os.pathsep + _os.environ.get('PATH', '')
+    _os.environ["PATH"] = _package_dir + _os.pathsep + _os.environ.get("PATH", "")
     for _f in sorted(_os.listdir(_package_dir)):
-        if _f.endswith('.dll') and 'iec61850' in _f.lower():
+        if _f.endswith(".dll") and "iec61850" in _f.lower():
             try:
                 _ctypes.WinDLL(_os.path.join(_package_dir, _f), winmode=0)
                 break
@@ -34,7 +34,7 @@ if _sys.platform == 'win32':
                 pass
 else:
     for _f in _os.listdir(_package_dir):
-        if _f.startswith('libiec61850.so'):
+        if _f.startswith("libiec61850.so"):
             try:
                 _ctypes.CDLL(_os.path.join(_package_dir, _f))
                 break
@@ -64,4 +64,4 @@ try:
 except ImportError:
     pass
 
-__all__ = ['tase2', 'mms', 'goose', 'sv', 'server']
+__all__ = ["tase2", "mms", "goose", "sv", "server"]

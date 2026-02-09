@@ -5,9 +5,9 @@ Tests for pyiec61850.mms.control module - Control operations client.
 All tests use mocks since the C library isn't available in dev.
 """
 
-import unittest
-from unittest.mock import Mock, MagicMock, patch
 import logging
+import unittest
+from unittest.mock import Mock, patch
 
 logging.disable(logging.CRITICAL)
 
@@ -17,17 +17,23 @@ class TestControlImports(unittest.TestCase):
 
     def test_import_control_client(self):
         from pyiec61850.mms.control import ControlClient
+
         self.assertIsNotNone(ControlClient)
 
     def test_import_types(self):
         from pyiec61850.mms.control import ControlResult
+
         self.assertIsNotNone(ControlResult)
 
     def test_import_exceptions(self):
         from pyiec61850.mms.control import (
-            ControlError, SelectError, OperateError, CancelError,
+            CancelError,
+            ControlError,
+            OperateError,
+            SelectError,
         )
         from pyiec61850.mms.exceptions import MMSError
+
         self.assertTrue(issubclass(ControlError, MMSError))
         self.assertTrue(issubclass(SelectError, ControlError))
         self.assertTrue(issubclass(OperateError, ControlError))
@@ -35,12 +41,10 @@ class TestControlImports(unittest.TestCase):
 
     def test_import_constants(self):
         from pyiec61850.mms.control import (
-            CONTROL_MODEL_STATUS_ONLY,
-            CONTROL_MODEL_DIRECT_NORMAL,
-            CONTROL_MODEL_SBO_NORMAL,
-            CONTROL_MODEL_DIRECT_ENHANCED,
             CONTROL_MODEL_SBO_ENHANCED,
+            CONTROL_MODEL_STATUS_ONLY,
         )
+
         self.assertEqual(CONTROL_MODEL_STATUS_ONLY, 0)
         self.assertEqual(CONTROL_MODEL_SBO_ENHANCED, 4)
 
@@ -50,12 +54,14 @@ class TestControlResult(unittest.TestCase):
 
     def test_default_creation(self):
         from pyiec61850.mms.control import ControlResult
+
         result = ControlResult()
         self.assertFalse(result.success)
         self.assertEqual(result.object_ref, "")
 
     def test_to_dict(self):
         from pyiec61850.mms.control import ControlResult
+
         result = ControlResult(success=True, object_ref="myLD/CSWI1.Pos")
         d = result.to_dict()
         self.assertTrue(d["success"])
@@ -72,52 +78,57 @@ class TestControlClient(unittest.TestCase):
         return client
 
     def test_raises_without_library(self):
-        with patch('pyiec61850.mms.control._HAS_IEC61850', False):
+        with patch("pyiec61850.mms.control._HAS_IEC61850", False):
             from pyiec61850.mms.control import ControlClient
             from pyiec61850.mms.exceptions import LibraryNotFoundError
+
             with self.assertRaises(LibraryNotFoundError):
                 ControlClient(Mock())
 
     def test_creation_success(self):
-        with patch('pyiec61850.mms.control._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.control.iec61850'):
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850"):
                 from pyiec61850.mms.control import ControlClient
+
                 client = self._make_mock_mms_client()
                 ctrl = ControlClient(client)
                 self.assertFalse(ctrl.is_active)
 
     def test_select_success(self):
-        with patch('pyiec61850.mms.control._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.control.iec61850') as mock_iec:
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850") as mock_iec:
                 mock_control = Mock()
                 mock_iec.ControlObjectClient_create.return_value = mock_control
                 mock_iec.ControlObjectClient_select.return_value = True
 
                 from pyiec61850.mms.control import ControlClient
+
                 client = self._make_mock_mms_client()
                 ctrl = ControlClient(client)
                 result = ctrl.select("myLD/CSWI1.Pos")
                 self.assertTrue(result)
 
     def test_select_failure(self):
-        with patch('pyiec61850.mms.control._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.control.iec61850') as mock_iec:
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850") as mock_iec:
                 mock_control = Mock()
                 mock_iec.ControlObjectClient_create.return_value = mock_control
                 mock_iec.ControlObjectClient_select.return_value = False
                 mock_iec.ControlObjectClient_getLastApplError.return_value = 1
 
                 from pyiec61850.mms.control import ControlClient, SelectError
+
                 client = self._make_mock_mms_client()
                 ctrl = ControlClient(client)
                 with self.assertRaises(SelectError):
                     ctrl.select("myLD/CSWI1.Pos")
 
     def test_select_not_connected(self):
-        with patch('pyiec61850.mms.control._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.control.iec61850'):
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850"):
                 from pyiec61850.mms.control import ControlClient
                 from pyiec61850.mms.exceptions import NotConnectedError
+
                 client = Mock()
                 client.is_connected = False
                 ctrl = ControlClient(client)
@@ -125,22 +136,23 @@ class TestControlClient(unittest.TestCase):
                     ctrl.select("test")
 
     def test_operate_success(self):
-        with patch('pyiec61850.mms.control._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.control.iec61850') as mock_iec:
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850") as mock_iec:
                 mock_control = Mock()
                 mock_iec.ControlObjectClient_create.return_value = mock_control
                 mock_iec.ControlObjectClient_operate.return_value = True
                 mock_iec.MmsValue_newBoolean.return_value = Mock()
 
                 from pyiec61850.mms.control import ControlClient
+
                 client = self._make_mock_mms_client()
                 ctrl = ControlClient(client)
                 result = ctrl.operate("myLD/CSWI1.Pos", True)
                 self.assertTrue(result)
 
     def test_operate_failure(self):
-        with patch('pyiec61850.mms.control._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.control.iec61850') as mock_iec:
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850") as mock_iec:
                 mock_control = Mock()
                 mock_iec.ControlObjectClient_create.return_value = mock_control
                 mock_iec.ControlObjectClient_operate.return_value = False
@@ -148,72 +160,78 @@ class TestControlClient(unittest.TestCase):
                 mock_iec.MmsValue_newBoolean.return_value = Mock()
 
                 from pyiec61850.mms.control import ControlClient, OperateError
+
                 client = self._make_mock_mms_client()
                 ctrl = ControlClient(client)
                 with self.assertRaises(OperateError):
                     ctrl.operate("myLD/CSWI1.Pos", True)
 
     def test_cancel_success(self):
-        with patch('pyiec61850.mms.control._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.control.iec61850') as mock_iec:
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850") as mock_iec:
                 mock_control = Mock()
                 mock_iec.ControlObjectClient_create.return_value = mock_control
                 mock_iec.ControlObjectClient_cancel.return_value = True
 
                 from pyiec61850.mms.control import ControlClient
+
                 client = self._make_mock_mms_client()
                 ctrl = ControlClient(client)
                 result = ctrl.cancel("myLD/CSWI1.Pos")
                 self.assertTrue(result)
 
     def test_cancel_failure(self):
-        with patch('pyiec61850.mms.control._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.control.iec61850') as mock_iec:
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850") as mock_iec:
                 mock_control = Mock()
                 mock_iec.ControlObjectClient_create.return_value = mock_control
                 mock_iec.ControlObjectClient_cancel.return_value = False
 
-                from pyiec61850.mms.control import ControlClient, CancelError
+                from pyiec61850.mms.control import CancelError, ControlClient
+
                 client = self._make_mock_mms_client()
                 ctrl = ControlClient(client)
                 with self.assertRaises(CancelError):
                     ctrl.cancel("myLD/CSWI1.Pos")
 
     def test_direct_operate(self):
-        with patch('pyiec61850.mms.control._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.control.iec61850') as mock_iec:
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850") as mock_iec:
                 mock_control = Mock()
                 mock_iec.ControlObjectClient_create.return_value = mock_control
                 mock_iec.ControlObjectClient_operate.return_value = True
                 mock_iec.MmsValue_newIntegerFromInt32.return_value = Mock()
 
                 from pyiec61850.mms.control import ControlClient
+
                 client = self._make_mock_mms_client()
                 ctrl = ControlClient(client)
                 result = ctrl.direct_operate("myLD/CSWI1.Pos", 42)
                 self.assertTrue(result)
 
     def test_select_with_value(self):
-        with patch('pyiec61850.mms.control._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.control.iec61850') as mock_iec:
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850") as mock_iec:
                 mock_control = Mock()
                 mock_iec.ControlObjectClient_create.return_value = mock_control
                 mock_iec.ControlObjectClient_selectWithValue.return_value = True
                 mock_iec.MmsValue_newFloat.return_value = Mock()
 
                 from pyiec61850.mms.control import ControlClient
+
                 client = self._make_mock_mms_client()
                 ctrl = ControlClient(client)
                 result = ctrl.select_with_value("myLD/CSWI1.Pos", 3.14)
                 self.assertTrue(result)
 
     def test_release(self):
-        with patch('pyiec61850.mms.control._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.control.iec61850') as mock_iec:
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850") as mock_iec:
                 mock_control = Mock()
                 mock_iec.ControlObjectClient_create.return_value = mock_control
 
                 from pyiec61850.mms.control import ControlClient
+
                 client = self._make_mock_mms_client()
                 ctrl = ControlClient(client)
                 # Create a control object
@@ -225,11 +243,12 @@ class TestControlClient(unittest.TestCase):
                 mock_iec.ControlObjectClient_destroy.assert_called_once()
 
     def test_release_all(self):
-        with patch('pyiec61850.mms.control._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.control.iec61850') as mock_iec:
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850") as mock_iec:
                 mock_iec.ControlObjectClient_create.return_value = Mock()
 
                 from pyiec61850.mms.control import ControlClient
+
                 client = self._make_mock_mms_client()
                 ctrl = ControlClient(client)
                 ctrl._get_or_create_control("test1")
@@ -239,11 +258,12 @@ class TestControlClient(unittest.TestCase):
                 self.assertEqual(len(ctrl._control_objects), 0)
 
     def test_context_manager(self):
-        with patch('pyiec61850.mms.control._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.control.iec61850') as mock_iec:
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850") as mock_iec:
                 mock_iec.ControlObjectClient_create.return_value = Mock()
 
                 from pyiec61850.mms.control import ControlClient
+
                 client = self._make_mock_mms_client()
                 with ControlClient(client) as ctrl:
                     ctrl._get_or_create_control("test")
@@ -251,11 +271,12 @@ class TestControlClient(unittest.TestCase):
                 self.assertFalse(ctrl.is_active)
 
     def test_reuses_existing_control_object(self):
-        with patch('pyiec61850.mms.control._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.control.iec61850') as mock_iec:
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850") as mock_iec:
                 mock_iec.ControlObjectClient_create.return_value = Mock()
 
                 from pyiec61850.mms.control import ControlClient
+
                 client = self._make_mock_mms_client()
                 ctrl = ControlClient(client)
                 obj1 = ctrl._get_or_create_control("test")
@@ -265,5 +286,5 @@ class TestControlClient(unittest.TestCase):
                 mock_iec.ControlObjectClient_create.assert_called_once()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -6,12 +6,13 @@ Low-level MMS connection wrapper for TASE.2 operations.
 Handles connection management, ISO parameters, and raw MMS function calls.
 """
 
-from typing import Any, Callable, List, Optional, Tuple
 import logging
 import threading
+from typing import Any, Callable, List, Optional, Tuple
 
 try:
     import pyiec61850.pyiec61850 as iec61850
+
     _HAS_IEC61850 = True
 except ImportError:
     _HAS_IEC61850 = False
@@ -20,19 +21,17 @@ except ImportError:
 from .constants import (
     DEFAULT_PORT,
     DEFAULT_TIMEOUT,
-    STATE_DISCONNECTED,
-    STATE_CONNECTING,
-    STATE_CONNECTED,
-    STATE_CLOSING,
-    MMS_ERROR_NONE,
     MAX_DATA_SET_SIZE,
     STATE_CHECK_INTERVAL,
+    STATE_CLOSING,
+    STATE_CONNECTED,
+    STATE_CONNECTING,
+    STATE_DISCONNECTED,
 )
 from .exceptions import (
-    LibraryNotFoundError,
-    ConnectionFailedError,
-    ConnectionTimeoutError,
     ConnectionClosedError,
+    ConnectionFailedError,
+    LibraryNotFoundError,
     NotConnectedError,
     TASE2Error,
     map_ied_error,
@@ -148,7 +147,7 @@ class MmsConnectionWrapper:
                 if self._connection and self._state == STATE_CONNECTED:
                     ied_state = iec61850.IedConnection_getState(self._connection)
                     # IED_STATE_CONNECTED = 1 in libiec61850
-                    if ied_state != getattr(iec61850, 'IED_STATE_CONNECTED', 1):
+                    if ied_state != getattr(iec61850, "IED_STATE_CONNECTED", 1):
                         old_state = self._state
                         self._state = STATE_DISCONNECTED
                         logger.warning(f"Connection lost to {self._host}:{self._port}")
@@ -167,7 +166,7 @@ class MmsConnectionWrapper:
             return False
         try:
             ied_state = iec61850.IedConnection_getState(self._connection)
-            if ied_state != getattr(iec61850, 'IED_STATE_CONNECTED', 1):
+            if ied_state != getattr(iec61850, "IED_STATE_CONNECTED", 1):
                 old_state = self._state
                 self._state = STATE_DISCONNECTED
                 self._fire_state_callbacks(old_state, STATE_DISCONNECTED)
@@ -287,7 +286,7 @@ class MmsConnectionWrapper:
 
             # Try to set the AP title using the pyiec61850 API
             if is_local:
-                if hasattr(iec61850, 'IsoConnectionParameters_setLocalApTitle'):
+                if hasattr(iec61850, "IsoConnectionParameters_setLocalApTitle"):
                     iec61850.IsoConnectionParameters_setLocalApTitle(
                         iso_params, ap_title, self._local_ae_qualifier
                     )
@@ -295,7 +294,7 @@ class MmsConnectionWrapper:
                 else:
                     logger.debug(f"Local AP title API not available: {ap_title}")
             else:
-                if hasattr(iec61850, 'IsoConnectionParameters_setRemoteApTitle'):
+                if hasattr(iec61850, "IsoConnectionParameters_setRemoteApTitle"):
                     iec61850.IsoConnectionParameters_setRemoteApTitle(
                         iso_params, ap_title, self._remote_ae_qualifier
                     )
@@ -349,7 +348,7 @@ class MmsConnectionWrapper:
         try:
             if self._connection:
                 ied_state = iec61850.IedConnection_getState(self._connection)
-                if ied_state != getattr(iec61850, 'IED_STATE_CONNECTED', 1):
+                if ied_state != getattr(iec61850, "IED_STATE_CONNECTED", 1):
                     old_state = self._state
                     self._state = STATE_DISCONNECTED
                     self._fire_state_callbacks(old_state, STATE_DISCONNECTED)
@@ -516,9 +515,7 @@ class MmsConnectionWrapper:
             # Construct data set reference
             ds_ref = f"{domain}/{name}"
 
-            result = iec61850.IedConnection_readDataSetValues(
-                self._connection, ds_ref, None
-            )
+            result = iec61850.IedConnection_readDataSetValues(self._connection, ds_ref, None)
 
             if isinstance(result, tuple):
                 data_set, error = result
@@ -576,9 +573,7 @@ class MmsConnectionWrapper:
         self._ensure_connected()
 
         try:
-            result = iec61850.IedConnection_readObject(
-                self._connection, domain, variable
-            )
+            result = iec61850.IedConnection_readObject(self._connection, domain, variable)
 
             if isinstance(result, tuple):
                 value, error = result
@@ -606,23 +601,23 @@ class MmsConnectionWrapper:
         """
         try:
             # Check if it's already an MmsValue (has MMS type info)
-            if hasattr(value, '__class__') and 'MmsValue' in str(type(value)):
+            if hasattr(value, "__class__") and "MmsValue" in str(type(value)):
                 return value
 
             # Create appropriate MmsValue based on Python type
             if isinstance(value, bool):
-                if hasattr(iec61850, 'MmsValue_newBoolean'):
+                if hasattr(iec61850, "MmsValue_newBoolean"):
                     return iec61850.MmsValue_newBoolean(value)
             elif isinstance(value, int):
-                if hasattr(iec61850, 'MmsValue_newIntegerFromInt32'):
+                if hasattr(iec61850, "MmsValue_newIntegerFromInt32"):
                     return iec61850.MmsValue_newIntegerFromInt32(value)
-                elif hasattr(iec61850, 'MmsValue_newInteger'):
+                elif hasattr(iec61850, "MmsValue_newInteger"):
                     return iec61850.MmsValue_newInteger(value)
             elif isinstance(value, float):
-                if hasattr(iec61850, 'MmsValue_newFloat'):
+                if hasattr(iec61850, "MmsValue_newFloat"):
                     return iec61850.MmsValue_newFloat(value)
             elif isinstance(value, str):
-                if hasattr(iec61850, 'MmsValue_newVisibleString'):
+                if hasattr(iec61850, "MmsValue_newVisibleString"):
                     return iec61850.MmsValue_newVisibleString(value)
 
             # Return original value if no conversion available
@@ -667,7 +662,7 @@ class MmsConnectionWrapper:
             raise TASE2Error(f"Failed to write {domain}/{variable}: {e}")
         finally:
             # Clean up if we created the MmsValue
-            if created_value and hasattr(iec61850, 'MmsValue_delete'):
+            if created_value and hasattr(iec61850, "MmsValue_delete"):
                 try:
                     iec61850.MmsValue_delete(mms_value)
                 except Exception:
@@ -716,9 +711,7 @@ class MmsConnectionWrapper:
                     full_ref = member_ref
                 iec61850.LinkedList_add(member_list, full_ref)
 
-            error = iec61850.IedConnection_createDataSet(
-                self._connection, ds_ref, member_list
-            )
+            error = iec61850.IedConnection_createDataSet(self._connection, ds_ref, member_list)
 
             if isinstance(error, tuple):
                 error = error[-1]
@@ -761,12 +754,10 @@ class MmsConnectionWrapper:
         try:
             ds_ref = f"{domain}/{name}"
 
-            result = iec61850.IedConnection_deleteDataSet(
-                self._connection, ds_ref
-            )
+            result = iec61850.IedConnection_deleteDataSet(self._connection, ds_ref)
 
             if isinstance(result, tuple):
-                success, error = result[0], result[-1]
+                _, error = result[0], result[-1]
                 if error != iec61850.IED_ERROR_OK:
                     raise map_ied_error(error, f"delete data set {ds_ref}")
             elif result is False or result == 0:
@@ -801,9 +792,9 @@ class MmsConnectionWrapper:
             if isinstance(result, tuple) and len(result) >= 2:
                 identity, error = result[0], result[1]
                 if error == iec61850.IED_ERROR_OK and identity:
-                    vendor = getattr(identity, 'vendorName', None)
-                    model = getattr(identity, 'modelName', None)
-                    revision = getattr(identity, 'revision', None)
+                    vendor = getattr(identity, "vendorName", None)
+                    model = getattr(identity, "modelName", None)
+                    revision = getattr(identity, "revision", None)
                     return (vendor, model, revision)
 
             return (None, None, None)
@@ -836,9 +827,7 @@ class MmsConnectionWrapper:
         self._ensure_connected()
 
         try:
-            result = iec61850.IedConnection_getFileDirectory(
-                self._connection, directory_name
-            )
+            result = iec61850.IedConnection_getFileDirectory(self._connection, directory_name)
 
             if isinstance(result, tuple):
                 file_list, error = result
@@ -865,7 +854,9 @@ class MmsConnectionWrapper:
                         except Exception:
                             entry["size"] = 0
                         try:
-                            entry["last_modified"] = iec61850.FileDirectoryEntry_getLastModified(data)
+                            entry["last_modified"] = iec61850.FileDirectoryEntry_getLastModified(
+                                data
+                            )
                         except Exception:
                             entry["last_modified"] = 0
                         files.append(entry)
@@ -897,9 +888,7 @@ class MmsConnectionWrapper:
         self._ensure_connected()
 
         try:
-            error = iec61850.IedConnection_deleteFile(
-                self._connection, file_name
-            )
+            error = iec61850.IedConnection_deleteFile(self._connection, file_name)
 
             if isinstance(error, tuple):
                 error = error[-1]
@@ -951,7 +940,7 @@ class MmsConnectionWrapper:
 
             # Try using IedConnection_getFile if available with a handler
             # Fall back to MMS open/read/close sequence
-            if hasattr(iec61850, 'MmsConnection_fileOpen'):
+            if hasattr(iec61850, "MmsConnection_fileOpen"):
                 return self._download_file_mms(mms_conn, filename, max_size)
             else:
                 raise TASE2Error(
@@ -973,9 +962,7 @@ class MmsConnectionWrapper:
 
         try:
             # Open the file
-            result = iec61850.MmsConnection_fileOpen(
-                mms_conn, filename, 0
-            )
+            result = iec61850.MmsConnection_fileOpen(mms_conn, filename, 0)
 
             # Parse result - may be tuple (frsmId, fileSize, lastModified, error)
             # or just frsmId depending on SWIG typemaps
@@ -985,9 +972,7 @@ class MmsConnectionWrapper:
                     # Check for error in last element
                     error_val = result[-1]
                     if isinstance(error_val, int) and error_val != 0:
-                        raise TASE2Error(
-                            f"MMS fileOpen failed for '{filename}': error {error_val}"
-                        )
+                        raise TASE2Error(f"MMS fileOpen failed for '{filename}': error {error_val}")
                 else:
                     frsmId = result[0]
             else:
@@ -1002,16 +987,14 @@ class MmsConnectionWrapper:
             more_follows = True
             while more_follows:
                 if len(data) > max_size:
-                    raise TASE2Error(
-                        f"File '{filename}' exceeds maximum size {max_size} bytes"
-                    )
+                    raise TASE2Error(f"File '{filename}' exceeds maximum size {max_size} bytes")
 
                 # MmsConnection_fileRead needs a callback - this is the hard part
                 # Since we can't easily create C callbacks from Python,
                 # we check for alternative read approaches
 
                 # Try the synchronous read with handler pattern
-                if hasattr(iec61850, 'MmsConnection_fileRead'):
+                if hasattr(iec61850, "MmsConnection_fileRead"):
                     # The fileRead function requires a C callback handler
                     # We cannot use it directly from Python SWIG bindings
                     # Instead, break out and return what we have from fileOpen
@@ -1030,7 +1013,7 @@ class MmsConnectionWrapper:
             # Close the file handle
             if frsmId is not None and isinstance(frsmId, int) and frsmId >= 0:
                 try:
-                    if hasattr(iec61850, 'MmsConnection_fileClose'):
+                    if hasattr(iec61850, "MmsConnection_fileClose"):
                         iec61850.MmsConnection_fileClose(mms_conn, frsmId)
                         logger.debug(f"Closed file FRSM ID {frsmId}")
                 except Exception as e:
@@ -1053,10 +1036,8 @@ class MmsConnectionWrapper:
             called: Max outstanding calls from server (called)
         """
         if self._connection:
-            if hasattr(iec61850, 'IedConnection_setMaxOutstandingCalls'):
-                iec61850.IedConnection_setMaxOutstandingCalls(
-                    self._connection, calling, called
-                )
+            if hasattr(iec61850, "IedConnection_setMaxOutstandingCalls"):
+                iec61850.IedConnection_setMaxOutstandingCalls(self._connection, calling, called)
                 logger.debug(f"Set max outstanding calls: calling={calling}, called={called}")
             else:
                 logger.warning("IedConnection_setMaxOutstandingCalls not available")
@@ -1071,10 +1052,8 @@ class MmsConnectionWrapper:
             timeout_ms: Timeout in milliseconds for individual MMS requests
         """
         if self._connection:
-            if hasattr(iec61850, 'IedConnection_setRequestTimeout'):
-                iec61850.IedConnection_setRequestTimeout(
-                    self._connection, timeout_ms
-                )
+            if hasattr(iec61850, "IedConnection_setRequestTimeout"):
+                iec61850.IedConnection_setRequestTimeout(self._connection, timeout_ms)
                 logger.debug(f"Set request timeout: {timeout_ms}ms")
             else:
                 logger.warning("IedConnection_setRequestTimeout not available")
@@ -1108,7 +1087,7 @@ class MmsConnectionWrapper:
                 return False
 
             # Check if SWIG director classes are available
-            if not hasattr(iec61850, 'InformationReportHandler'):
+            if not hasattr(iec61850, "InformationReportHandler"):
                 logger.warning(
                     "InformationReportHandler not available in SWIG bindings - "
                     "rebuild wheel with ./build.sh to enable InformationReport support"
@@ -1186,7 +1165,7 @@ class _PyInfoReportHandler:
         self._report_callback = report_callback
 
         # Try to initialize as SWIG director subclass
-        if _HAS_IEC61850 and hasattr(iec61850, 'InformationReportHandler'):
+        if _HAS_IEC61850 and hasattr(iec61850, "InformationReportHandler"):
             try:
                 # Dynamically inherit from the SWIG class
                 iec61850.InformationReportHandler.__init__(self)
@@ -1200,12 +1179,13 @@ class _PyInfoReportHandler:
         Parses the MmsValue data and creates a TransferReport.
         """
         from datetime import datetime, timezone
-        from .types import TransferReport, PointValue
+
+        from .types import PointValue, TransferReport
 
         try:
-            domain = self.getDomainName() if hasattr(self, 'getDomainName') else ""
-            ts_name = self.getVariableListName() if hasattr(self, 'getVariableListName') else ""
-            mms_value = self.getMmsValue() if hasattr(self, 'getMmsValue') else None
+            domain = self.getDomainName() if hasattr(self, "getDomainName") else ""
+            ts_name = self.getVariableListName() if hasattr(self, "getVariableListName") else ""
+            mms_value = self.getMmsValue() if hasattr(self, "getMmsValue") else None
 
             values = []
             if mms_value and _HAS_IEC61850:
@@ -1215,11 +1195,13 @@ class _PyInfoReportHandler:
                         element = iec61850.MmsValue_getElement(mms_value, i)
                         if element:
                             py_value = self._extract_value(element)
-                            values.append(PointValue(
-                                value=py_value,
-                                name=f"{ts_name}[{i}]",
-                                domain=domain,
-                            ))
+                            values.append(
+                                PointValue(
+                                    value=py_value,
+                                    name=f"{ts_name}[{i}]",
+                                    domain=domain,
+                                )
+                            )
                 except Exception as e:
                     logger.warning(f"Failed to parse InformationReport values: {e}")
 
@@ -1246,16 +1228,18 @@ class _PyInfoReportHandler:
         try:
             mms_type = iec61850.MmsValue_getType(mms_value)
 
-            if mms_type == getattr(iec61850, 'MMS_FLOAT', 6):
+            if mms_type == getattr(iec61850, "MMS_FLOAT", 6):
                 return iec61850.MmsValue_toFloat(mms_value)
-            elif mms_type == getattr(iec61850, 'MMS_INTEGER', 4):
+            elif mms_type == getattr(iec61850, "MMS_INTEGER", 4):
                 return iec61850.MmsValue_toInt32(mms_value)
-            elif mms_type == getattr(iec61850, 'MMS_UNSIGNED', 5):
+            elif mms_type == getattr(iec61850, "MMS_UNSIGNED", 5):
                 return iec61850.MmsValue_toUint32(mms_value)
-            elif mms_type == getattr(iec61850, 'MMS_BOOLEAN', 2):
+            elif mms_type == getattr(iec61850, "MMS_BOOLEAN", 2):
                 return iec61850.MmsValue_getBoolean(mms_value)
-            elif mms_type in (getattr(iec61850, 'MMS_VISIBLE_STRING', 8),
-                              getattr(iec61850, 'MMS_STRING', 13)):
+            elif mms_type in (
+                getattr(iec61850, "MMS_VISIBLE_STRING", 8),
+                getattr(iec61850, "MMS_STRING", 13),
+            ):
                 return iec61850.MmsValue_toString(mms_value)
             else:
                 try:

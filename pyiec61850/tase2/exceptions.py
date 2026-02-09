@@ -18,6 +18,7 @@ class TASE2Error(Exception):
 # Library Errors
 class LibraryError(TASE2Error):
     """Error related to the underlying library."""
+
     pass
 
 
@@ -31,6 +32,7 @@ class LibraryNotFoundError(LibraryError):
 # Connection Errors
 class TASE2ConnectionError(TASE2Error):
     """Base class for connection-related errors."""
+
     pass
 
 
@@ -92,6 +94,7 @@ class AssociationError(ConnectionError):
 # Authentication Errors
 class AuthenticationError(TASE2Error):
     """Base class for authentication-related errors."""
+
     pass
 
 
@@ -119,6 +122,7 @@ class BilateralTableError(AuthenticationError):
 # Operation Errors
 class OperationError(TASE2Error):
     """Base class for operation-related errors."""
+
     pass
 
 
@@ -198,6 +202,7 @@ class TransferSetNotFoundError(ResourceNotFoundError):
 # Data Access Errors
 class DataAccessError(TASE2Error):
     """Base class for data access errors."""
+
     pass
 
 
@@ -242,6 +247,7 @@ class TypeMismatchError(DataAccessError):
 # Control Errors (Block 5)
 class ControlError(TASE2Error):
     """Base class for control operation errors."""
+
     pass
 
 
@@ -305,6 +311,7 @@ class DeviceBlockedError(ControlError):
 # Information Message Errors (Block 4)
 class InformationMessageError(TASE2Error):
     """Base class for information message errors (Block 4)."""
+
     pass
 
 
@@ -328,6 +335,7 @@ class IMNotSupportedError(InformationMessageError):
 # Transfer Set Errors (Block 2)
 class TransferSetError(TASE2Error):
     """Base class for transfer set errors."""
+
     pass
 
 
@@ -354,6 +362,7 @@ class TransferSetConfigError(TransferSetError):
 # Protocol Errors
 class ProtocolError(TASE2Error):
     """Base class for protocol-level errors."""
+
     pass
 
 
@@ -405,25 +414,35 @@ def map_ied_error(error_code: int, context: str = "") -> TASE2Error:
     # libiec61850's IedClientError enum
     try:
         import pyiec61850.pyiec61850 as iec61850
-        _get = lambda name, default: getattr(iec61850, name, default)
+
+        def _get(name, default):
+            return getattr(iec61850, name, default)
     except ImportError:
-        _get = lambda name, default: default
+
+        def _get(name, default):
+            return default
 
     error_map = {
-        _get('IED_ERROR_ALREADY_CONNECTED', 1): lambda: TASE2Error(f"Already connected: {context}"),
-        _get('IED_ERROR_NOT_CONNECTED', 2): lambda: NotConnectedError(context),
-        _get('IED_ERROR_ACCESS_DENIED', 3): lambda: AccessDeniedError(context),
-        _get('IED_ERROR_OBJECT_REFERENCE_INVALID', 4): lambda: InvalidParameterError(context, "invalid object reference"),
-        _get('IED_ERROR_OBJECT_DOES_NOT_EXIST', 5): lambda: VariableNotFoundError(context),
-        _get('IED_ERROR_OBJECT_EXISTS', 6): lambda: TASE2Error(f"Object already exists: {context}"),
-        _get('IED_ERROR_TIMEOUT', 7): lambda: TASE2TimeoutError(context),
-        _get('IED_ERROR_ENABLE_REPORT_FAILED_DATASET_MISMATCH', 8): lambda: TransferSetConfigError(context, "dataset mismatch"),
-        _get('IED_ERROR_TYPE_INCONSISTENT', 9): lambda: TypeMismatchError("", context),
-        _get('IED_ERROR_CONNECTION_LOST', 10): lambda: ConnectionClosedError(context),
-        _get('IED_ERROR_SERVICE_NOT_SUPPORTED', 11): lambda: ServiceError(context),
+        _get("IED_ERROR_ALREADY_CONNECTED", 1): lambda: TASE2Error(f"Already connected: {context}"),
+        _get("IED_ERROR_NOT_CONNECTED", 2): lambda: NotConnectedError(context),
+        _get("IED_ERROR_ACCESS_DENIED", 3): lambda: AccessDeniedError(context),
+        _get("IED_ERROR_OBJECT_REFERENCE_INVALID", 4): lambda: InvalidParameterError(
+            context, "invalid object reference"
+        ),
+        _get("IED_ERROR_OBJECT_DOES_NOT_EXIST", 5): lambda: VariableNotFoundError(context),
+        _get("IED_ERROR_OBJECT_EXISTS", 6): lambda: TASE2Error(f"Object already exists: {context}"),
+        _get("IED_ERROR_TIMEOUT", 7): lambda: TASE2TimeoutError(context),
+        _get("IED_ERROR_ENABLE_REPORT_FAILED_DATASET_MISMATCH", 8): lambda: TransferSetConfigError(
+            context, "dataset mismatch"
+        ),
+        _get("IED_ERROR_TYPE_INCONSISTENT", 9): lambda: TypeMismatchError("", context),
+        _get("IED_ERROR_CONNECTION_LOST", 10): lambda: ConnectionClosedError(context),
+        _get("IED_ERROR_SERVICE_NOT_SUPPORTED", 11): lambda: ServiceError(context),
     }
 
     if error_code in error_map:
         return error_map[error_code]()
 
-    return TASE2Error(f"IED error {error_code}: {context}" if context else f"IED error {error_code}")
+    return TASE2Error(
+        f"IED error {error_code}: {context}" if context else f"IED error {error_code}"
+    )

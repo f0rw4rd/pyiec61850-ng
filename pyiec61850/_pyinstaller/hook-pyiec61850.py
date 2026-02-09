@@ -13,8 +13,8 @@ issues in a frozen build, add the companion runtime hook manually::
     )
 """
 
-import os
 import glob
+import os
 
 from PyInstaller.utils.hooks import (
     collect_data_files,

@@ -5,13 +5,14 @@ IEC 61850 Server Data Types
 Data classes for server configuration and runtime data.
 """
 
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from dataclasses import dataclass
+from typing import Any, Dict, Optional
 
 
 @dataclass
 class ServerConfig:
     """IEC 61850 Server configuration."""
+
     port: int = 102
     max_connections: int = 5
     file_service_base_path: Optional[str] = None
@@ -34,6 +35,7 @@ class ServerConfig:
 @dataclass
 class ClientConnection:
     """Information about a connected client."""
+
     client_id: int = 0
     peer_address: str = ""
     authenticated: bool = False
@@ -49,6 +51,7 @@ class ClientConnection:
 @dataclass
 class DataAttributeInfo:
     """Information about a data attribute in the model."""
+
     reference: str = ""
     fc: str = ""
     type_name: str = ""
