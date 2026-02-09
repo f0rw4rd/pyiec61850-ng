@@ -492,23 +492,27 @@ class ControlClient:
         return False
 
 
-class _PyCommandTermHandler:
+# Dynamically inherit from CommandTermHandler so SWIG director vtable is correct.
+# Without proper inheritance, C++ callback into trigger() segfaults.
+_CommandTermHandlerBase = (
+    iec61850.CommandTermHandler
+    if _HAS_IEC61850 and hasattr(iec61850, "CommandTermHandler")
+    else object
+)
+
+
+class _PyCommandTermHandler(_CommandTermHandlerBase):
     """
     Python-side command termination handler (SWIG director subclass).
 
-    Receives ControlObjectClient from the C++ layer and delivers
-    a ControlResult to the Python callback.
+    Inherits from CommandTermHandler so the C++ side can call trigger()
+    through the SWIG director vtable without segfaulting.
     """
 
     def __init__(self, callback: Callable, object_ref: str):
+        super().__init__()
         self._callback = callback
         self._object_ref = object_ref
-
-        if _HAS_IEC61850 and hasattr(iec61850, "CommandTermHandler"):
-            try:
-                iec61850.CommandTermHandler.__init__(self)
-            except Exception:
-                pass
 
     def trigger(self):
         """Called by C++ subscriber when command termination arrives."""

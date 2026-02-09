@@ -1141,16 +1141,24 @@ class MmsConnectionWrapper:
             pass
 
 
-class _PyInfoReportHandler:
+# Dynamically inherit from InformationReportHandler so SWIG director vtable is correct.
+# Without proper inheritance, C++ callback into trigger() segfaults.
+_InfoReportHandlerBase = (
+    iec61850.InformationReportHandler
+    if _HAS_IEC61850 and hasattr(iec61850, "InformationReportHandler")
+    else object
+)
+
+
+class _PyInfoReportHandler(_InfoReportHandlerBase):
     """
-    Python-side InformationReport handler (director subclass).
+    Python-side InformationReport handler (SWIG director subclass).
 
-    When the SWIG bindings are available, this inherits from
-    InformationReportHandler and overrides trigger() to parse
-    MmsValue data into TransferReport objects and enqueue them.
+    Inherits from InformationReportHandler so the C++ side can call
+    trigger() through the SWIG director vtable without segfaulting.
 
-    When SWIG bindings are not available, this is a standalone
-    class that can still be instantiated but won't receive reports.
+    When SWIG bindings are not available, falls back to object base
+    and can still be instantiated but won't receive reports.
     """
 
     def __init__(self, report_queue, report_callback=None):
@@ -1161,16 +1169,9 @@ class _PyInfoReportHandler:
             report_queue: queue.Queue to put TransferReport objects into
             report_callback: Optional callable for inline notification
         """
+        super().__init__()
         self._report_queue = report_queue
         self._report_callback = report_callback
-
-        # Try to initialize as SWIG director subclass
-        if _HAS_IEC61850 and hasattr(iec61850, "InformationReportHandler"):
-            try:
-                # Dynamically inherit from the SWIG class
-                iec61850.InformationReportHandler.__init__(self)
-            except Exception:
-                pass
 
     def trigger(self):
         """

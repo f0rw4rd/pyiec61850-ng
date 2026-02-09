@@ -286,5 +286,39 @@ class TestControlClient(unittest.TestCase):
                 mock_iec.ControlObjectClient_create.assert_called_once()
 
 
+class TestPyCommandTermHandlerDirectorInheritance(unittest.TestCase):
+    """_PyCommandTermHandler must properly inherit from CommandTermHandler."""
+
+    def test_base_class_is_dynamic(self):
+        """_CommandTermHandlerBase must exist as module-level dynamic base class."""
+        from pyiec61850.mms import control
+
+        self.assertTrue(
+            hasattr(control, "_CommandTermHandlerBase"),
+            "_CommandTermHandlerBase not defined — handler won't inherit",
+        )
+
+    def test_handler_uses_dynamic_base(self):
+        """_PyCommandTermHandler must inherit from _CommandTermHandlerBase."""
+        from pyiec61850.mms.control import (
+            _CommandTermHandlerBase,
+            _PyCommandTermHandler,
+        )
+
+        self.assertTrue(
+            issubclass(_PyCommandTermHandler, _CommandTermHandlerBase),
+        )
+
+    def test_handler_calls_super_init(self):
+        """__init__ must call super().__init__(), not iec61850.X.__init__(self)."""
+        import inspect
+
+        from pyiec61850.mms.control import _PyCommandTermHandler
+
+        source = inspect.getsource(_PyCommandTermHandler.__init__)
+        self.assertIn("super().__init__", source)
+        self.assertNotIn("CommandTermHandler.__init__(self)", source)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -241,5 +241,37 @@ class TestReportClient(unittest.TestCase):
                 self.assertEqual(len(reports._handlers), 0)
 
 
+class TestPyRCBHandlerDirectorInheritance(unittest.TestCase):
+    """_PyRCBHandler must properly inherit from RCBHandler for SWIG director."""
+
+    def test_base_class_is_dynamic(self):
+        """_RCBHandlerBase must exist as module-level dynamic base class."""
+        from pyiec61850.mms import reporting
+
+        self.assertTrue(
+            hasattr(reporting, "_RCBHandlerBase"),
+            "_RCBHandlerBase not defined — handler won't inherit from RCBHandler",
+        )
+
+    def test_handler_uses_dynamic_base(self):
+        """_PyRCBHandler must inherit from _RCBHandlerBase, not plain object."""
+        from pyiec61850.mms.reporting import _PyRCBHandler, _RCBHandlerBase
+
+        self.assertTrue(
+            issubclass(_PyRCBHandler, _RCBHandlerBase),
+            "_PyRCBHandler does not inherit from _RCBHandlerBase",
+        )
+
+    def test_handler_calls_super_init(self):
+        """__init__ must call super().__init__(), not iec61850.X.__init__(self)."""
+        import inspect
+
+        from pyiec61850.mms.reporting import _PyRCBHandler
+
+        source = inspect.getsource(_PyRCBHandler.__init__)
+        self.assertIn("super().__init__", source)
+        self.assertNotIn("RCBHandler.__init__(self)", source)
+
+
 if __name__ == "__main__":
     unittest.main()

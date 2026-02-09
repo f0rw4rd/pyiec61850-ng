@@ -4737,5 +4737,39 @@ class TestSupportedFeaturesAllBlocks(unittest.TestCase):
             self.assertIn(name, __all__, f"{name} missing from __all__")
 
 
+class TestPyInfoReportHandlerDirectorInheritance(unittest.TestCase):
+    """_PyInfoReportHandler must properly inherit from InformationReportHandler."""
+
+    def test_base_class_is_dynamic(self):
+        """_InfoReportHandlerBase must exist as module-level dynamic base class."""
+        from pyiec61850.tase2 import connection
+
+        self.assertTrue(
+            hasattr(connection, "_InfoReportHandlerBase"),
+            "_InfoReportHandlerBase not defined — handler won't inherit",
+        )
+
+    def test_handler_uses_dynamic_base(self):
+        """_PyInfoReportHandler must inherit from _InfoReportHandlerBase."""
+        from pyiec61850.tase2.connection import (
+            _InfoReportHandlerBase,
+            _PyInfoReportHandler,
+        )
+
+        self.assertTrue(
+            issubclass(_PyInfoReportHandler, _InfoReportHandlerBase),
+        )
+
+    def test_handler_calls_super_init(self):
+        """__init__ must call super().__init__(), not iec61850.X.__init__(self)."""
+        import inspect
+
+        from pyiec61850.tase2.connection import _PyInfoReportHandler
+
+        source = inspect.getsource(_PyInfoReportHandler.__init__)
+        self.assertIn("super().__init__", source)
+        self.assertNotIn("InformationReportHandler.__init__(self)", source)
+
+
 if __name__ == "__main__":
     unittest.main()
