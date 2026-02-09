@@ -20,7 +20,7 @@ Usage:
     )
 """
 
-from typing import Any, Generator, List, Optional, Callable
+from typing import Any, Dict, Generator, List, Optional, Callable, Union
 from contextlib import contextmanager
 import logging
 
@@ -435,3 +435,180 @@ def cleanup_all(*resources: tuple) -> None:
                 cleanup_fn(resource)
             except Exception as e:
                 logger.debug(f"Cleanup error: {e}")
+
+
+# =============================================================================
+# MmsValue <-> Python conversion
+# =============================================================================
+
+# MMS type constants with fallbacks (matches mms_common.h MmsType enum)
+_MMS_ARRAY = 0
+_MMS_STRUCTURE = 1
+_MMS_BOOLEAN = 2
+_MMS_BIT_STRING = 3
+_MMS_INTEGER = 4
+_MMS_UNSIGNED = 5
+_MMS_FLOAT = 6
+_MMS_OCTET_STRING = 7
+_MMS_VISIBLE_STRING = 8
+_MMS_BINARY_TIME = 10
+_MMS_STRING = 13
+_MMS_UTC_TIME = 14
+_MMS_DATA_ACCESS_ERROR = 15
+
+
+def _mms_const(name: str, fallback: int) -> int:
+    """Get MMS constant from SWIG bindings with fallback."""
+    if _HAS_IEC61850:
+        return getattr(iec61850, name, fallback)
+    return fallback
+
+
+def mms_value_to_python(mms_value: Any) -> Union[
+    bool, int, float, str, bytes, list, dict, None
+]:
+    """
+    Convert an MmsValue to a native Python type.
+
+    Handles all MMS types recursively, replacing the duplicated switch
+    statements in MMS and GOOSE modules.
+
+    Args:
+        mms_value: MmsValue pointer from pyiec61850
+
+    Returns:
+        bool, int, float, str, bytes, list, dict, or None.
+        - MMS_BOOLEAN -> bool
+        - MMS_INTEGER -> int
+        - MMS_UNSIGNED -> int
+        - MMS_FLOAT -> float
+        - MMS_VISIBLE_STRING, MMS_STRING -> str
+        - MMS_BIT_STRING -> int (bit pattern as integer)
+        - MMS_OCTET_STRING -> bytes
+        - MMS_ARRAY -> list (recursively converted elements)
+        - MMS_STRUCTURE -> dict (with integer keys if names unavailable)
+        - MMS_UTC_TIME -> int (milliseconds since epoch)
+        - MMS_BINARY_TIME -> int (milliseconds since epoch)
+        - MMS_DATA_ACCESS_ERROR -> None
+
+    Raises:
+        LibraryNotFoundError: If pyiec61850 is not available
+
+    Example:
+        mms_val = iec61850.IedConnection_readObject(conn, ref, fc)
+        python_val = mms_value_to_python(mms_val)
+    """
+    _ensure_library()
+
+    if mms_value is None or mms_value == 0:
+        return None
+
+    mms_type = iec61850.MmsValue_getType(mms_value)
+
+    type_boolean = _mms_const('MMS_BOOLEAN', _MMS_BOOLEAN)
+    type_integer = _mms_const('MMS_INTEGER', _MMS_INTEGER)
+    type_unsigned = _mms_const('MMS_UNSIGNED', _MMS_UNSIGNED)
+    type_float = _mms_const('MMS_FLOAT', _MMS_FLOAT)
+    type_visible_string = _mms_const('MMS_VISIBLE_STRING', _MMS_VISIBLE_STRING)
+    type_string = _mms_const('MMS_STRING', _MMS_STRING)
+    type_bit_string = _mms_const('MMS_BIT_STRING', _MMS_BIT_STRING)
+    type_octet_string = _mms_const('MMS_OCTET_STRING', _MMS_OCTET_STRING)
+    type_structure = _mms_const('MMS_STRUCTURE', _MMS_STRUCTURE)
+    type_array = _mms_const('MMS_ARRAY', _MMS_ARRAY)
+    type_utc_time = _mms_const('MMS_UTC_TIME', _MMS_UTC_TIME)
+    type_binary_time = _mms_const('MMS_BINARY_TIME', _MMS_BINARY_TIME)
+    type_data_access_error = _mms_const('MMS_DATA_ACCESS_ERROR', _MMS_DATA_ACCESS_ERROR)
+
+    if mms_type == type_boolean:
+        return bool(iec61850.MmsValue_getBoolean(mms_value))
+
+    elif mms_type == type_integer:
+        return int(iec61850.MmsValue_toInt64(mms_value))
+
+    elif mms_type == type_unsigned:
+        return int(iec61850.MmsValue_toUint32(mms_value))
+
+    elif mms_type == type_float:
+        return float(iec61850.MmsValue_toFloat(mms_value))
+
+    elif mms_type in (type_visible_string, type_string):
+        return str(iec61850.MmsValue_toString(mms_value))
+
+    elif mms_type == type_bit_string:
+        return int(iec61850.MmsValue_getBitStringAsInteger(mms_value))
+
+    elif mms_type == type_octet_string:
+        size = iec61850.MmsValue_getOctetStringSize(mms_value)
+        buf = iec61850.MmsValue_getOctetStringBuffer(mms_value)
+        if buf is not None and size > 0:
+            return bytes(iec61850.MmsValue_getOctetStringOctet(mms_value, i) for i in range(size))
+        return b''
+
+    elif mms_type == type_array:
+        count = iec61850.MmsValue_getArraySize(mms_value)
+        result = []
+        for i in range(count):
+            element = iec61850.MmsValue_getElement(mms_value, i)
+            result.append(mms_value_to_python(element))
+        return result
+
+    elif mms_type == type_structure:
+        count = iec61850.MmsValue_getArraySize(mms_value)
+        result = {}
+        for i in range(count):
+            element = iec61850.MmsValue_getElement(mms_value, i)
+            result[i] = mms_value_to_python(element)
+        return result
+
+    elif mms_type == type_utc_time:
+        return int(iec61850.MmsValue_getUtcTimeInMs(mms_value))
+
+    elif mms_type == type_binary_time:
+        return int(iec61850.MmsValue_getBinaryTimeAsUtcMs(mms_value))
+
+    elif mms_type == type_data_access_error:
+        return None
+
+    else:
+        logger.warning(f"Unknown MMS type: {mms_type}")
+        return None
+
+
+def python_to_mms_value(value: Any) -> Any:
+    """
+    Convert a native Python type to an MmsValue.
+
+    The caller is responsible for calling MmsValue_delete on the returned
+    handle when it is no longer needed (or use MmsValueGuard).
+
+    Args:
+        value: Python value (bool, int, float, or str)
+
+    Returns:
+        MmsValue handle
+
+    Raises:
+        LibraryNotFoundError: If pyiec61850 is not available
+        TypeError: If the value type is not supported
+
+    Example:
+        mms_val = python_to_mms_value(42)
+        # ... use mms_val ...
+        safe_mms_value_delete(mms_val)
+    """
+    _ensure_library()
+
+    # bool must be checked before int (bool is a subclass of int)
+    if isinstance(value, bool):
+        return iec61850.MmsValue_newBoolean(value)
+    elif isinstance(value, int):
+        return iec61850.MmsValue_newIntegerFromInt64(value)
+    elif isinstance(value, float):
+        return iec61850.MmsValue_newFloat(value)
+    elif isinstance(value, str):
+        return iec61850.MmsValue_newVisibleString(value)
+    else:
+        raise TypeError(
+            f"Cannot convert {type(value).__name__} to MmsValue. "
+            f"Supported types: bool, int, float, str"
+        )

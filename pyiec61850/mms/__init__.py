@@ -64,6 +64,9 @@ from .utils import (
     # Helper functions
     unpack_result,
     cleanup_all,
+    # MmsValue <-> Python conversion
+    mms_value_to_python,
+    python_to_mms_value,
 )
 
 # Exceptions
@@ -88,6 +91,8 @@ from .control import ControlClient, ControlResult, ControlError, SelectError, Op
 from .files import FileClient, FileInfo, FileError, FileNotFoundError, FileAccessError
 from .logging_service import LogClient, JournalEntry, JournalEntryData, LogQueryResult, LogError, LogQueryError
 from .tls import TLSConfig, TLSError, TLSConfigError, create_tls_configuration
+from .gocb import GoCBClient, GoCBInfo, GoCBError
+from .types import MmsType, FC, ACSIClass
 
 __all__ = [
     # Version
@@ -145,6 +150,17 @@ __all__ = [
     # Helpers
     "unpack_result",
     "cleanup_all",
+    # MmsValue conversion
+    "mms_value_to_python",
+    "python_to_mms_value",
+    # GoCB
+    "GoCBClient",
+    "GoCBInfo",
+    "GoCBError",
+    # Enums
+    "MmsType",
+    "FC",
+    "ACSIClass",
     # Exceptions
     "MMSError",
     "LibraryNotFoundError",
