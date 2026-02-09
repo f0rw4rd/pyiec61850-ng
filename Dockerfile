@@ -87,39 +87,8 @@ RUN for subpkg in mms tase2 goose sv server _pyinstaller; do \
     done && \
     ls -la pyiec61850/
 
-# Create __init__.py: load C library first, then import submodules
-RUN cat > pyiec61850/__init__.py << 'INITEOF'
-import os, sys, ctypes
-_package_dir = os.path.dirname(os.path.abspath(__file__))
-for _f in os.listdir(_package_dir):
-    if _f.startswith('libiec61850.so'):
-        try:
-            ctypes.CDLL(os.path.join(_package_dir, _f))
-            break
-        except Exception as _e:
-            print(f'Warning: Failed to load {_f}: {_e}')
-try:
-    from . import tase2
-except ImportError:
-    pass
-try:
-    from . import mms
-except ImportError:
-    pass
-try:
-    from . import goose
-except ImportError:
-    pass
-try:
-    from . import sv
-except ImportError:
-    pass
-try:
-    from . import server
-except ImportError:
-    pass
-__all__ = ['tase2', 'mms', 'goose', 'sv', 'server']
-INITEOF
+# Use the repo's __init__.py (has C library loader + submodule imports)
+RUN cp /build/repo-pyiec61850/__init__.py pyiec61850/__init__.py
 
 # Build wheel and retag as universal py3 (SWIG .so has no version suffix from cmake)
 RUN pip install build wheel setuptools && \
