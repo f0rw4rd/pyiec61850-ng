@@ -516,5 +516,435 @@ class TestCleanupAll(unittest.TestCase):
         cleanup2.assert_called_once_with(resource2)
 
 
+class TestMMSClientCrashPaths(unittest.TestCase):
+    """Test MMSClient crash paths: connect, read, write, discover."""
+
+    def test_connect_null_connection_create(self):
+        """IedConnection_create returning NULL must raise ConnectionFailedError."""
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.client.iec61850") as mock_iec:
+                mock_iec.IedConnection_create.return_value = None
+
+                from pyiec61850.mms import ConnectionFailedError, MMSClient
+
+                client = MMSClient()
+                with self.assertRaises(ConnectionFailedError):
+                    client.connect("192.168.1.100", 102)
+
+    def test_connect_unexpected_exception(self):
+        """Unexpected exception during connect must cleanup and raise ConnectionFailedError."""
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.client.iec61850") as mock_iec:
+                mock_iec.IedConnection_create.return_value = Mock()
+                mock_iec.IedConnection_setConnectTimeout.side_effect = RuntimeError("boom")
+
+                from pyiec61850.mms import ConnectionFailedError, MMSClient
+
+                client = MMSClient()
+                with self.assertRaises(ConnectionFailedError):
+                    client.connect("192.168.1.100", 102)
+
+                self.assertFalse(client.is_connected)
+
+    def test_connect_when_already_connected_disconnects_first(self):
+        """connect() when already connected must disconnect first."""
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.client.iec61850") as mock_iec:
+                mock_iec.IedConnection_create.return_value = Mock()
+                mock_iec.IedConnection_connect.return_value = 0
+                mock_iec.IED_ERROR_OK = 0
+
+                from pyiec61850.mms import MMSClient
+
+                client = MMSClient()
+                client.connect("host1", 102)
+                client.connect("host2", 102)
+
+                # Close should have been called for the first connection
+                mock_iec.IedConnection_close.assert_called()
+
+    def test_disconnect_when_not_connected(self):
+        """disconnect() when not connected must be no-op."""
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.client.iec61850") as mock_iec:
+                from pyiec61850.mms import MMSClient
+
+                client = MMSClient()
+                client.disconnect()  # Must not raise
+
+                mock_iec.IedConnection_close.assert_not_called()
+
+    def test_disconnect_close_exception_still_destroys(self):
+        """If IedConnection_close throws, destroy must still be called."""
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.client.iec61850") as mock_iec:
+                mock_iec.IedConnection_create.return_value = Mock()
+                mock_iec.IedConnection_connect.return_value = 0
+                mock_iec.IED_ERROR_OK = 0
+                mock_iec.IedConnection_close.side_effect = RuntimeError("close failed")
+
+                from pyiec61850.mms import MMSClient
+
+                client = MMSClient()
+                client.connect("host", 102)
+                client.disconnect()  # Must not raise
+
+                mock_iec.IedConnection_destroy.assert_called()
+                self.assertFalse(client.is_connected)
+
+    def test_read_value_success(self):
+        """read_value must convert MmsValue and clean up."""
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+                with patch("pyiec61850.mms.client.iec61850") as mock_iec:
+                    with patch("pyiec61850.mms.utils.iec61850", mock_iec):
+                        mock_conn = Mock()
+                        mock_iec.IedConnection_create.return_value = mock_conn
+                        mock_iec.IedConnection_connect.return_value = 0
+                        mock_iec.IED_ERROR_OK = 0
+                        mock_iec.IEC61850_FC_ST = 0
+                        mock_mms_val = Mock()
+                        mock_iec.IedConnection_readObject.return_value = (mock_mms_val, 0)
+                        mock_iec.MmsValue_getType.return_value = 0
+                        mock_iec.MmsValue_getBoolean.return_value = True
+
+                        from pyiec61850.mms import MMSClient
+
+                        client = MMSClient()
+                        client.connect("host", 102)
+
+                        with patch("pyiec61850.mms.client.MMS_BOOLEAN", 0):
+                            result = client.read_value("myLD/LN.DO.DA")
+
+                        self.assertTrue(result)
+
+    def test_read_value_error(self):
+        """read_value with error result must raise ReadError."""
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+                with patch("pyiec61850.mms.client.iec61850") as mock_iec:
+                    with patch("pyiec61850.mms.utils.iec61850", mock_iec):
+                        mock_conn = Mock()
+                        mock_iec.IedConnection_create.return_value = mock_conn
+                        mock_iec.IedConnection_connect.return_value = 0
+                        mock_iec.IED_ERROR_OK = 0
+                        mock_iec.IEC61850_FC_ST = 0
+                        mock_iec.IedConnection_readObject.return_value = (None, 5)
+
+                        from pyiec61850.mms import MMSClient
+                        from pyiec61850.mms.exceptions import ReadError
+
+                        client = MMSClient()
+                        client.connect("host", 102)
+                        with self.assertRaises(ReadError):
+                            client.read_value("bad/ref")
+
+    def test_read_value_not_connected(self):
+        """read_value when not connected must raise NotConnectedError."""
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.client.iec61850"):
+                from pyiec61850.mms import MMSClient, NotConnectedError
+
+                client = MMSClient()
+                with self.assertRaises(NotConnectedError):
+                    client.read_value("test")
+
+    def test_write_value_success(self):
+        """write_value must create MmsValue and clean up."""
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+                with patch("pyiec61850.mms.client.iec61850") as mock_iec:
+                    with patch("pyiec61850.mms.utils.iec61850", mock_iec):
+                        mock_conn = Mock()
+                        mock_iec.IedConnection_create.return_value = mock_conn
+                        mock_iec.IedConnection_connect.return_value = 0
+                        mock_iec.IED_ERROR_OK = 0
+                        mock_iec.IEC61850_FC_ST = 0
+                        mock_iec.MmsValue_newBoolean.return_value = Mock()
+                        mock_iec.IedConnection_writeObject.return_value = 0
+
+                        from pyiec61850.mms import MMSClient
+
+                        client = MMSClient()
+                        client.connect("host", 102)
+                        result = client.write_value("myLD/LN.DO.DA", True)
+
+                        self.assertTrue(result)
+
+    def test_write_value_error(self):
+        """write_value with error must raise WriteError."""
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+                with patch("pyiec61850.mms.client.iec61850") as mock_iec:
+                    with patch("pyiec61850.mms.utils.iec61850", mock_iec):
+                        mock_conn = Mock()
+                        mock_iec.IedConnection_create.return_value = mock_conn
+                        mock_iec.IedConnection_connect.return_value = 0
+                        mock_iec.IED_ERROR_OK = 0
+                        mock_iec.IEC61850_FC_ST = 0
+                        mock_iec.MmsValue_newBoolean.return_value = Mock()
+                        mock_iec.IedConnection_writeObject.return_value = 5
+
+                        from pyiec61850.mms import MMSClient
+                        from pyiec61850.mms.exceptions import WriteError
+
+                        client = MMSClient()
+                        client.connect("host", 102)
+                        with self.assertRaises(WriteError):
+                            client.write_value("test", True)
+
+    def test_write_value_unsupported_type(self):
+        """write_value with unsupported type must raise WriteError."""
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+                with patch("pyiec61850.mms.client.iec61850") as mock_iec:
+                    with patch("pyiec61850.mms.utils.iec61850", mock_iec):
+                        mock_conn = Mock()
+                        mock_iec.IedConnection_create.return_value = mock_conn
+                        mock_iec.IedConnection_connect.return_value = 0
+                        mock_iec.IED_ERROR_OK = 0
+                        mock_iec.IEC61850_FC_ST = 0
+
+                        from pyiec61850.mms import MMSClient
+                        from pyiec61850.mms.exceptions import WriteError
+
+                        client = MMSClient()
+                        client.connect("host", 102)
+                        with self.assertRaises(WriteError):
+                            client.write_value("test", {"unsupported": True})
+
+    def test_write_value_not_connected(self):
+        """write_value when not connected must raise NotConnectedError."""
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.client.iec61850"):
+                from pyiec61850.mms import MMSClient, NotConnectedError
+
+                client = MMSClient()
+                with self.assertRaises(NotConnectedError):
+                    client.write_value("test", True)
+
+    def test_get_logical_nodes(self):
+        """get_logical_nodes must return node names."""
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+                with patch("pyiec61850.mms.client.iec61850") as mock_iec:
+                    with patch("pyiec61850.mms.utils.iec61850", mock_iec):
+                        mock_conn = Mock()
+                        mock_iec.IedConnection_create.return_value = mock_conn
+                        mock_iec.IedConnection_connect.return_value = 0
+                        mock_iec.IED_ERROR_OK = 0
+
+                        mock_list = Mock()
+                        mock_iec.IedConnection_getLogicalNodeList.return_value = (mock_list, 0)
+                        elem = Mock()
+                        mock_iec.LinkedList_getNext.side_effect = [elem, None]
+                        mock_iec.LinkedList_getData.return_value = Mock()
+                        mock_iec.toCharP.return_value = "LLN0"
+
+                        from pyiec61850.mms import MMSClient
+
+                        client = MMSClient()
+                        client.connect("host", 102)
+                        nodes = client.get_logical_nodes("myLD")
+
+                        self.assertEqual(nodes, ["LLN0"])
+
+    def test_get_data_objects(self):
+        """get_data_objects must return object names."""
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+                with patch("pyiec61850.mms.client.iec61850") as mock_iec:
+                    with patch("pyiec61850.mms.utils.iec61850", mock_iec):
+                        mock_conn = Mock()
+                        mock_iec.IedConnection_create.return_value = mock_conn
+                        mock_iec.IedConnection_connect.return_value = 0
+                        mock_iec.IED_ERROR_OK = 0
+                        mock_iec.ACSI_CLASS_DATA_OBJECT = 0
+
+                        mock_list = Mock()
+                        mock_iec.IedConnection_getLogicalNodeDirectory.return_value = (
+                            mock_list,
+                            0,
+                        )
+                        elem = Mock()
+                        mock_iec.LinkedList_getNext.side_effect = [elem, None]
+                        mock_iec.LinkedList_getData.return_value = Mock()
+                        mock_iec.toCharP.return_value = "TotW"
+
+                        from pyiec61850.mms import MMSClient
+
+                        client = MMSClient()
+                        client.connect("host", 102)
+                        objs = client.get_data_objects("myLD", "MMXU1")
+
+                        self.assertEqual(objs, ["TotW"])
+
+    def test_get_data_objects_error_returns_empty(self):
+        """get_data_objects with error must return empty list."""
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+                with patch("pyiec61850.mms.client.iec61850") as mock_iec:
+                    with patch("pyiec61850.mms.utils.iec61850", mock_iec):
+                        mock_conn = Mock()
+                        mock_iec.IedConnection_create.return_value = mock_conn
+                        mock_iec.IedConnection_connect.return_value = 0
+                        mock_iec.IED_ERROR_OK = 0
+                        mock_iec.ACSI_CLASS_DATA_OBJECT = 0
+                        mock_iec.IedConnection_getLogicalNodeDirectory.return_value = (None, 5)
+
+                        from pyiec61850.mms import MMSClient
+
+                        client = MMSClient()
+                        client.connect("host", 102)
+                        objs = client.get_data_objects("myLD", "LN")
+
+                        self.assertEqual(objs, [])
+
+    def test_get_server_identity(self):
+        """get_server_identity must return identity info."""
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+                with patch("pyiec61850.mms.client.iec61850") as mock_iec:
+                    with patch("pyiec61850.mms.utils.iec61850", mock_iec):
+                        mock_conn = Mock()
+                        mock_iec.IedConnection_create.return_value = mock_conn
+                        mock_iec.IedConnection_connect.return_value = 0
+                        mock_iec.IED_ERROR_OK = 0
+
+                        mock_identity = Mock()
+                        mock_identity.vendorName = "TestVendor"
+                        mock_identity.modelName = "TestModel"
+                        mock_identity.revision = "1.0"
+                        mock_iec.IedConnection_identify.return_value = (mock_identity, 0)
+
+                        from pyiec61850.mms import MMSClient
+
+                        client = MMSClient()
+                        client.connect("host", 102)
+                        identity = client.get_server_identity()
+
+                        self.assertEqual(identity.vendor, "TestVendor")
+                        self.assertEqual(identity.model, "TestModel")
+
+    def test_get_server_identity_null_result(self):
+        """get_server_identity with NULL result must return empty identity."""
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+                with patch("pyiec61850.mms.client.iec61850") as mock_iec:
+                    with patch("pyiec61850.mms.utils.iec61850", mock_iec):
+                        mock_conn = Mock()
+                        mock_iec.IedConnection_create.return_value = mock_conn
+                        mock_iec.IedConnection_connect.return_value = 0
+                        mock_iec.IED_ERROR_OK = 0
+                        mock_iec.IedConnection_identify.return_value = (None, 0)
+
+                        from pyiec61850.mms import MMSClient
+
+                        client = MMSClient()
+                        client.connect("host", 102)
+                        identity = client.get_server_identity()
+
+                        self.assertIsNone(identity.vendor)
+
+    def test_convert_mms_value_null(self):
+        """_convert_mms_value with NULL must return None."""
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.client.iec61850"):
+                from pyiec61850.mms import MMSClient
+
+                client = MMSClient()
+                result = client._convert_mms_value(None)
+                self.assertIsNone(result)
+
+    def test_convert_mms_value_unknown_type(self):
+        """_convert_mms_value with unknown type must return type info string."""
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.client.iec61850") as mock_iec:
+                mock_iec.MmsValue_getType.return_value = 99
+
+                from pyiec61850.mms import MMSClient
+
+                client = MMSClient()
+                with (
+                    patch("pyiec61850.mms.client.MMS_BOOLEAN", 0),
+                    patch("pyiec61850.mms.client.MMS_INTEGER", 1),
+                    patch("pyiec61850.mms.client.MMS_UNSIGNED", 2),
+                    patch("pyiec61850.mms.client.MMS_FLOAT", 3),
+                    patch("pyiec61850.mms.client.MMS_VISIBLE_STRING", 7),
+                    patch("pyiec61850.mms.client.MMS_BIT_STRING", 4),
+                ):
+                    result = client._convert_mms_value(Mock())
+
+                self.assertIn("99", str(result))
+
+    def test_convert_mms_value_exception(self):
+        """_convert_mms_value with exception must return None."""
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.client.iec61850") as mock_iec:
+                mock_iec.MmsValue_getType.side_effect = RuntimeError("crash")
+
+                from pyiec61850.mms import MMSClient
+
+                client = MMSClient()
+                result = client._convert_mms_value(Mock())
+                self.assertIsNone(result)
+
+    def test_create_mms_value_types(self):
+        """_create_mms_value must handle all supported types."""
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.client.iec61850") as mock_iec:
+                mock_iec.MmsValue_newBoolean.return_value = Mock()
+                mock_iec.MmsValue_newIntegerFromInt32.return_value = Mock()
+                mock_iec.MmsValue_newFloat.return_value = Mock()
+                mock_iec.MmsValue_newVisibleString.return_value = Mock()
+
+                from pyiec61850.mms import MMSClient
+
+                client = MMSClient()
+                self.assertIsNotNone(client._create_mms_value(True))
+                self.assertIsNotNone(client._create_mms_value(42))
+                self.assertIsNotNone(client._create_mms_value(3.14))
+                self.assertIsNotNone(client._create_mms_value("hello"))
+                self.assertIsNone(client._create_mms_value([1, 2, 3]))
+
+    def test_cleanup_destroy_exception(self):
+        """If IedConnection_destroy throws during cleanup, must not crash."""
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.client.iec61850") as mock_iec:
+                mock_iec.IedConnection_destroy.side_effect = RuntimeError("destroy failed")
+
+                from pyiec61850.mms import MMSClient
+
+                client = MMSClient()
+                client._connection = Mock()
+                client._cleanup()  # Must not raise
+
+                self.assertIsNone(client._connection)
+
+    def test_get_error_string_with_api(self):
+        """_get_error_string must use IedClientError_toString if available."""
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.client.iec61850") as mock_iec:
+                mock_iec.IedClientError_toString.return_value = "timeout"
+
+                from pyiec61850.mms import MMSClient
+
+                client = MMSClient()
+                result = client._get_error_string(5)
+                self.assertEqual(result, "timeout")
+
+    def test_get_error_string_fallback(self):
+        """_get_error_string must fallback to error code if API not available."""
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.client.iec61850") as mock_iec:
+                del mock_iec.IedClientError_toString
+
+                from pyiec61850.mms import MMSClient
+
+                client = MMSClient()
+                result = client._get_error_string(5)
+                self.assertIn("5", result)
+
+
 if __name__ == "__main__":
     unittest.main()

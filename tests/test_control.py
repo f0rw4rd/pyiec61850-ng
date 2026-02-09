@@ -320,5 +320,269 @@ class TestPyCommandTermHandlerDirectorInheritance(unittest.TestCase):
         self.assertNotIn("CommandTermHandler.__init__(self)", source)
 
 
+class TestPyCommandTermHandlerTriggerCrashPaths(unittest.TestCase):
+    """Test _PyCommandTermHandler.trigger() crash paths."""
+
+    def _make_handler(self, callback=None):
+        from pyiec61850.mms.control import _PyCommandTermHandler
+
+        return _PyCommandTermHandler(callback or Mock(), "myLD/CSWI1.Pos")
+
+    def test_trigger_with_null_control_object_no_crash(self):
+        """trigger() must not crash when _libiec61850_control_object_client is missing."""
+        handler = self._make_handler()
+        handler.trigger()  # Must not raise (AttributeError caught)
+
+    def test_trigger_callback_exception_no_crash(self):
+        """trigger() must catch callback exceptions."""
+        callback = Mock(side_effect=RuntimeError("callback crashed"))
+        handler = self._make_handler(callback)
+        handler._libiec61850_control_object_client = Mock()
+
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850") as mock_iec:
+                mock_iec.ControlObjectClient_getLastApplError.return_value = 0
+                handler.trigger()  # Must not raise
+
+    def test_trigger_with_null_callback_no_crash(self):
+        """trigger() with None callback must not crash."""
+        handler = self._make_handler()
+        handler._callback = None
+        handler.trigger()  # Must not raise
+
+    def test_trigger_delivers_result_to_callback(self):
+        """trigger() must deliver ControlResult to callback."""
+        callback = Mock()
+        handler = self._make_handler(callback)
+        handler._libiec61850_control_object_client = Mock()
+
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850") as mock_iec:
+                mock_iec.ControlObjectClient_getLastApplError.return_value = 0
+                handler.trigger()
+
+                callback.assert_called_once()
+                result = callback.call_args[0][0]
+                self.assertTrue(result.success)
+                self.assertEqual(result.object_ref, "myLD/CSWI1.Pos")
+
+    def test_trigger_with_nonzero_error(self):
+        """trigger() with non-zero lastApplError must set success=False."""
+        callback = Mock()
+        handler = self._make_handler(callback)
+        handler._libiec61850_control_object_client = Mock()
+
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850") as mock_iec:
+                mock_iec.ControlObjectClient_getLastApplError.return_value = 3
+                handler.trigger()
+
+                result = callback.call_args[0][0]
+                self.assertFalse(result.success)
+                self.assertEqual(result.last_error, 3)
+
+
+class TestControlClientCrashPaths(unittest.TestCase):
+    """Test ControlClient crash paths."""
+
+    def _make_mock_mms_client(self):
+        client = Mock()
+        client.is_connected = True
+        client._connection = Mock()
+        return client
+
+    def test_get_or_create_control_null_return(self):
+        """ControlObjectClient_create returning NULL must raise ControlError."""
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850") as mock_iec:
+                mock_iec.ControlObjectClient_create.return_value = None
+
+                from pyiec61850.mms.control import ControlClient, ControlError
+
+                client = self._make_mock_mms_client()
+                ctrl = ControlClient(client)
+                with self.assertRaises(ControlError):
+                    ctrl._get_or_create_control("test")
+
+    def test_operate_unsupported_value_type(self):
+        """operate() with unsupported value type must raise OperateError."""
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850") as mock_iec:
+                mock_iec.ControlObjectClient_create.return_value = Mock()
+
+                from pyiec61850.mms.control import ControlClient, OperateError
+
+                client = self._make_mock_mms_client()
+                ctrl = ControlClient(client)
+                with self.assertRaises(OperateError):
+                    ctrl.operate("test", {"unsupported": True})
+
+    def test_select_with_value_unsupported_type(self):
+        """select_with_value() with unsupported value type must raise SelectError."""
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850") as mock_iec:
+                mock_iec.ControlObjectClient_create.return_value = Mock()
+
+                from pyiec61850.mms.control import ControlClient, SelectError
+
+                client = self._make_mock_mms_client()
+                ctrl = ControlClient(client)
+                with self.assertRaises(SelectError):
+                    ctrl.select_with_value("test", {"unsupported": True})
+
+    def test_select_with_value_server_rejects(self):
+        """select_with_value() rejected by server must raise SelectError."""
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850") as mock_iec:
+                mock_iec.ControlObjectClient_create.return_value = Mock()
+                mock_iec.MmsValue_newBoolean.return_value = Mock()
+                mock_iec.ControlObjectClient_selectWithValue.return_value = False
+
+                from pyiec61850.mms.control import ControlClient, SelectError
+
+                client = self._make_mock_mms_client()
+                ctrl = ControlClient(client)
+                with self.assertRaises(SelectError):
+                    ctrl.select_with_value("test", True)
+
+    def test_get_control_model_success(self):
+        """get_control_model must return model from C function."""
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850") as mock_iec:
+                mock_iec.ControlObjectClient_create.return_value = Mock()
+                mock_iec.ControlObjectClient_getControlModel.return_value = 2
+
+                from pyiec61850.mms.control import ControlClient
+
+                client = self._make_mock_mms_client()
+                ctrl = ControlClient(client)
+                model = ctrl.get_control_model("test")
+                self.assertEqual(model, 2)
+
+    def test_get_control_model_exception(self):
+        """get_control_model exception must raise ControlError."""
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850") as mock_iec:
+                mock_iec.ControlObjectClient_create.return_value = Mock()
+                mock_iec.ControlObjectClient_getControlModel.side_effect = RuntimeError("fail")
+
+                from pyiec61850.mms.control import ControlClient, ControlError
+
+                client = self._make_mock_mms_client()
+                ctrl = ControlClient(client)
+                with self.assertRaises(ControlError):
+                    ctrl.get_control_model("test")
+
+    def test_set_command_term_handler_not_callable(self):
+        """set_command_termination_handler with non-callable must raise ControlError."""
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850") as mock_iec:
+                mock_iec.ControlObjectClient_create.return_value = Mock()
+
+                from pyiec61850.mms.control import ControlClient, ControlError
+
+                client = self._make_mock_mms_client()
+                ctrl = ControlClient(client)
+                with self.assertRaises(ControlError):
+                    ctrl.set_command_termination_handler("test", "not callable")
+
+    def test_set_command_term_handler_with_director(self):
+        """set_command_termination_handler with director classes."""
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850") as mock_iec:
+                mock_iec.ControlObjectClient_create.return_value = Mock()
+                mock_iec.CommandTermHandler = type(
+                    "CommandTermHandler", (), {"__init__": lambda self: None}
+                )
+                mock_subscriber_instance = Mock()
+                mock_subscriber_instance.subscribe.return_value = True
+                mock_iec.CommandTermSubscriber.return_value = mock_subscriber_instance
+
+                from pyiec61850.mms.control import ControlClient
+
+                client = self._make_mock_mms_client()
+                ctrl = ControlClient(client)
+                ctrl.set_command_termination_handler("test", Mock())
+
+                self.assertIn("test", ctrl._command_term_handlers)
+
+    def test_set_command_term_handler_subscribe_fails(self):
+        """subscribe() returning False must raise ControlError."""
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850") as mock_iec:
+                mock_iec.ControlObjectClient_create.return_value = Mock()
+                mock_iec.CommandTermHandler = type(
+                    "CommandTermHandler", (), {"__init__": lambda self: None}
+                )
+                mock_subscriber_instance = Mock()
+                mock_subscriber_instance.subscribe.return_value = False
+                mock_iec.CommandTermSubscriber.return_value = mock_subscriber_instance
+
+                from pyiec61850.mms.control import ControlClient, ControlError
+
+                client = self._make_mock_mms_client()
+                ctrl = ControlClient(client)
+                with self.assertRaises(ControlError):
+                    ctrl.set_command_termination_handler("test", Mock())
+
+    def test_release_destroy_exception_still_removes(self):
+        """If ControlObjectClient_destroy throws, object must still be removed."""
+        with patch("pyiec61850.mms.control._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.control.iec61850") as mock_iec:
+                mock_iec.ControlObjectClient_create.return_value = Mock()
+                mock_iec.ControlObjectClient_destroy.side_effect = RuntimeError("fail")
+
+                from pyiec61850.mms.control import ControlClient
+
+                client = self._make_mock_mms_client()
+                ctrl = ControlClient(client)
+                ctrl._get_or_create_control("test")
+                ctrl.release("test")  # Must not raise
+
+                self.assertNotIn("test", ctrl._control_objects)
+
+
+class TestServerControlHandler(unittest.TestCase):
+    """Test _PyControlHandler in server module."""
+
+    def test_trigger_with_missing_attributes_no_crash(self):
+        """trigger() must not crash with missing C++ attributes."""
+        with patch("pyiec61850.server.server._HAS_IEC61850", True):
+            with patch("pyiec61850.server.server.iec61850") as mock_iec:
+                del mock_iec.ControlHandlerForPython
+
+                from pyiec61850.server.server import _PyControlHandler
+
+                callback = Mock(return_value=0)
+                handler = _PyControlHandler(callback, "myLD/CSWI1.Pos")
+                handler.trigger()  # Must not crash
+
+                callback.assert_called_once()
+
+    def test_trigger_callback_exception_no_crash(self):
+        """trigger() must catch callback exceptions."""
+        with patch("pyiec61850.server.server._HAS_IEC61850", True):
+            with patch("pyiec61850.server.server.iec61850") as mock_iec:
+                del mock_iec.ControlHandlerForPython
+
+                from pyiec61850.server.server import _PyControlHandler
+
+                callback = Mock(side_effect=RuntimeError("boom"))
+                handler = _PyControlHandler(callback, "test")
+                handler.trigger()  # Must not raise
+
+    def test_trigger_null_callback_no_crash(self):
+        """trigger() with None callback must not crash."""
+        with patch("pyiec61850.server.server._HAS_IEC61850", True):
+            with patch("pyiec61850.server.server.iec61850") as mock_iec:
+                del mock_iec.ControlHandlerForPython
+
+                from pyiec61850.server.server import _PyControlHandler
+
+                handler = _PyControlHandler(None, "test")
+                handler._callback = None
+                handler.trigger()  # Must not raise
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -279,5 +279,334 @@ class TestSVPublisher(unittest.TestCase):
                 mock_iec.SVPublisher_destroy.assert_called()
 
 
+class TestSVSubscriberCrashPaths(unittest.TestCase):
+    """Test SVSubscriber crash paths: start, cleanup, NULL returns."""
+
+    def test_start_receiver_create_null(self):
+        """SVReceiver_create returning NULL must raise SubscriptionError."""
+        with patch("pyiec61850.sv.subscriber._HAS_IEC61850", True):
+            with patch("pyiec61850.sv.subscriber.iec61850") as mock_iec:
+                mock_iec.SVReceiver_create.return_value = None
+
+                from pyiec61850.sv import SubscriptionError, SVSubscriber
+
+                sub = SVSubscriber("eth0")
+                with self.assertRaises(SubscriptionError):
+                    sub.start()
+
+    def test_start_subscriber_create_null(self):
+        """SVSubscriber_create returning NULL must raise SubscriptionError."""
+        with patch("pyiec61850.sv.subscriber._HAS_IEC61850", True):
+            with patch("pyiec61850.sv.subscriber.iec61850") as mock_iec:
+                mock_iec.SVReceiver_create.return_value = Mock()
+                mock_iec.SVSubscriber_create.return_value = None
+
+                from pyiec61850.sv import SubscriptionError, SVSubscriber
+
+                sub = SVSubscriber("eth0")
+                with self.assertRaises(SubscriptionError):
+                    sub.start()
+
+    def test_start_with_app_id_filter(self):
+        """start() with app_id set must pass it to SVSubscriber_create."""
+        with patch("pyiec61850.sv.subscriber._HAS_IEC61850", True):
+            with patch("pyiec61850.sv.subscriber.iec61850") as mock_iec:
+                mock_iec.SVReceiver_create.return_value = Mock()
+                mock_iec.SVSubscriber_create.return_value = Mock()
+                mock_iec.SVReceiver_isRunning.return_value = True
+
+                from pyiec61850.sv import SVSubscriber
+
+                sub = SVSubscriber("eth0")
+                sub.set_app_id(0x4000)
+                sub.start()
+
+                mock_iec.SVSubscriber_create.assert_called_once_with(None, 0x4000)
+
+    def test_start_with_listener_registers(self):
+        """start() with listener set must register in _sv_listener_registry."""
+        with patch("pyiec61850.sv.subscriber._HAS_IEC61850", True):
+            with patch("pyiec61850.sv.subscriber.iec61850") as mock_iec:
+                mock_iec.SVReceiver_create.return_value = Mock()
+                mock_iec.SVSubscriber_create.return_value = Mock()
+                mock_iec.SVReceiver_isRunning.return_value = True
+
+                from pyiec61850.sv import SVSubscriber
+                from pyiec61850.sv.subscriber import _sv_listener_registry
+
+                sub = SVSubscriber("eth0")
+                cb = Mock()
+                sub.set_listener(cb)
+                sub.start()
+
+                self.assertIn(id(sub), _sv_listener_registry)
+
+                sub.stop()
+                self.assertNotIn(id(sub), _sv_listener_registry)
+
+    def test_start_unexpected_exception_triggers_cleanup(self):
+        """Unexpected exception during start must trigger _cleanup."""
+        with patch("pyiec61850.sv.subscriber._HAS_IEC61850", True):
+            with patch("pyiec61850.sv.subscriber.iec61850") as mock_iec:
+                mock_iec.SVReceiver_create.return_value = Mock()
+                mock_iec.SVSubscriber_create.return_value = Mock()
+                mock_iec.SVReceiver_addSubscriber.side_effect = RuntimeError("boom")
+
+                from pyiec61850.sv import SubscriptionError, SVSubscriber
+
+                sub = SVSubscriber("eth0")
+                with self.assertRaises(SubscriptionError):
+                    sub.start()
+
+                self.assertIsNone(sub._receiver)
+                self.assertIsNone(sub._subscriber)
+
+    def test_cleanup_destroy_exception_still_clears(self):
+        """If SVReceiver_destroy throws, references must still be cleared."""
+        with patch("pyiec61850.sv.subscriber._HAS_IEC61850", True):
+            with patch("pyiec61850.sv.subscriber.iec61850") as mock_iec:
+                mock_iec.SVReceiver_destroy.side_effect = RuntimeError("destroy failed")
+
+                from pyiec61850.sv import SVSubscriber
+
+                sub = SVSubscriber("eth0")
+                sub._running = True
+                sub._receiver = Mock()
+                sub._subscriber = Mock()
+
+                sub.stop()  # Must not raise
+
+                self.assertIsNone(sub._receiver)
+                self.assertIsNone(sub._subscriber)
+                self.assertFalse(sub.is_running)
+
+    def test_stop_receiver_stop_exception_still_cleans_up(self):
+        """If SVReceiver_stop throws, cleanup must still happen."""
+        with patch("pyiec61850.sv.subscriber._HAS_IEC61850", True):
+            with patch("pyiec61850.sv.subscriber.iec61850") as mock_iec:
+                mock_iec.SVReceiver_stop.side_effect = RuntimeError("stop failed")
+
+                from pyiec61850.sv import SVSubscriber
+
+                sub = SVSubscriber("eth0")
+                sub._running = True
+                sub._receiver = Mock()
+                sub._subscriber = Mock()
+
+                sub.stop()  # Must not raise
+
+                self.assertFalse(sub.is_running)
+                mock_iec.SVReceiver_destroy.assert_called_once()
+
+    def test_double_stop_no_crash(self):
+        """Calling stop() twice must not crash."""
+        with patch("pyiec61850.sv.subscriber._HAS_IEC61850", True):
+            with patch("pyiec61850.sv.subscriber.iec61850") as mock_iec:
+                mock_iec.SVReceiver_create.return_value = Mock()
+                mock_iec.SVSubscriber_create.return_value = Mock()
+                mock_iec.SVReceiver_isRunning.return_value = True
+
+                from pyiec61850.sv import SVSubscriber
+
+                sub = SVSubscriber("eth0")
+                sub.start()
+                sub.stop()
+                sub.stop()  # Must be no-op
+                self.assertFalse(sub.is_running)
+
+    def test_read_current_values_success(self):
+        """read_current_values must return SVMessage with data."""
+        with patch("pyiec61850.sv.subscriber._HAS_IEC61850", True):
+            with patch("pyiec61850.sv.subscriber.iec61850") as mock_iec:
+                mock_iec.SVReceiver_create.return_value = Mock()
+                mock_iec.SVSubscriber_create.return_value = Mock()
+                mock_iec.SVReceiver_isRunning.return_value = True
+                mock_iec.SVSubscriber_getSmpCnt.return_value = 42
+                mock_iec.SVSubscriber_getConfRev.return_value = 1
+                mock_iec.SVSubscriber_getSmpSynch.return_value = 0
+                mock_asdu = Mock()
+                mock_iec.SVSubscriber_getASDU.return_value = mock_asdu
+                mock_iec.SVClientASDU_getINT32.side_effect = [100, 200, 300, 400, 0, 0, 0, 0]
+
+                from pyiec61850.sv import SVSubscriber
+
+                sub = SVSubscriber("eth0")
+                sub.start()
+                msg = sub.read_current_values()
+
+                self.assertEqual(msg.smp_cnt, 42)
+                self.assertEqual(len(msg.values), 8)
+
+    def test_read_current_values_null_asdu(self):
+        """read_current_values with NULL ASDU must not crash."""
+        with patch("pyiec61850.sv.subscriber._HAS_IEC61850", True):
+            with patch("pyiec61850.sv.subscriber.iec61850") as mock_iec:
+                mock_iec.SVReceiver_create.return_value = Mock()
+                mock_iec.SVSubscriber_create.return_value = Mock()
+                mock_iec.SVReceiver_isRunning.return_value = True
+                mock_iec.SVSubscriber_getSmpCnt.return_value = 0
+                mock_iec.SVSubscriber_getConfRev.return_value = 0
+                mock_iec.SVSubscriber_getSmpSynch.return_value = 0
+                mock_iec.SVSubscriber_getASDU.return_value = None
+
+                from pyiec61850.sv import SVSubscriber
+
+                sub = SVSubscriber("eth0")
+                sub.start()
+                msg = sub.read_current_values()
+
+                self.assertEqual(msg.values, [])
+
+    def test_set_sv_id(self):
+        """set_sv_id must store the SV ID."""
+        with patch("pyiec61850.sv.subscriber._HAS_IEC61850", True):
+            with patch("pyiec61850.sv.subscriber.iec61850"):
+                from pyiec61850.sv import SVSubscriber
+
+                sub = SVSubscriber("eth0")
+                sub.set_sv_id("testSVID")
+                self.assertEqual(sub._sv_id, "testSVID")
+
+    def test_set_sv_id_while_running(self):
+        """set_sv_id while running must raise AlreadyStartedError."""
+        with patch("pyiec61850.sv.subscriber._HAS_IEC61850", True):
+            with patch("pyiec61850.sv.subscriber.iec61850"):
+                from pyiec61850.sv import AlreadyStartedError, SVSubscriber
+
+                sub = SVSubscriber("eth0")
+                sub._running = True
+                with self.assertRaises(AlreadyStartedError):
+                    sub.set_sv_id("test")
+
+
+class TestSVPublisherCrashPaths(unittest.TestCase):
+    """Test SVPublisher crash paths: start, publish, stop, cleanup."""
+
+    def test_start_publisher_create_null(self):
+        """SVPublisher_create returning NULL must raise PublishError."""
+        with patch("pyiec61850.sv.publisher._HAS_IEC61850", True):
+            with patch("pyiec61850.sv.publisher.iec61850") as mock_iec:
+                mock_iec.SVPublisher_create.return_value = None
+
+                from pyiec61850.sv import PublishError, SVPublisher
+
+                pub = SVPublisher("eth0")
+                with self.assertRaises(PublishError):
+                    pub.start()
+
+    def test_start_asdu_create_null(self):
+        """SVPublisher_addASDU returning NULL must raise PublishError."""
+        with patch("pyiec61850.sv.publisher._HAS_IEC61850", True):
+            with patch("pyiec61850.sv.publisher.iec61850") as mock_iec:
+                mock_iec.SVPublisher_create.return_value = Mock()
+                mock_iec.SVPublisher_addASDU.return_value = None
+
+                from pyiec61850.sv import PublishError, SVPublisher
+
+                pub = SVPublisher("eth0")
+                with self.assertRaises(PublishError):
+                    pub.start()
+
+    def test_start_unexpected_exception_triggers_cleanup(self):
+        """Unexpected exception during start must trigger _cleanup."""
+        with patch("pyiec61850.sv.publisher._HAS_IEC61850", True):
+            with patch("pyiec61850.sv.publisher.iec61850") as mock_iec:
+                mock_iec.SVPublisher_create.return_value = Mock()
+                mock_iec.SVPublisher_addASDU.return_value = Mock()
+                mock_iec.SVPublisher_ASDU_addINT32.side_effect = RuntimeError("boom")
+
+                from pyiec61850.sv import PublishError, SVPublisher
+
+                pub = SVPublisher("eth0")
+                with self.assertRaises(PublishError):
+                    pub.start()
+
+                self.assertIsNone(pub._publisher)
+
+    def test_publish_success(self):
+        """Successful publish path."""
+        with patch("pyiec61850.sv.publisher._HAS_IEC61850", True):
+            with patch("pyiec61850.sv.publisher.iec61850") as mock_iec:
+                mock_iec.SVPublisher_create.return_value = Mock()
+                mock_iec.SVPublisher_addASDU.return_value = Mock()
+
+                from pyiec61850.sv import SVPublisher
+
+                pub = SVPublisher("eth0")
+                pub.start()
+                pub.publish_samples([1000, 2000, 3000, 4000])
+
+                mock_iec.SVPublisher_publish.assert_called_once()
+                # smp_cnt should wrap
+                self.assertEqual(pub._smp_cnt, 1)
+
+    def test_publish_sample_count_wraps(self):
+        """Sample count must wrap at smp_rate."""
+        with patch("pyiec61850.sv.publisher._HAS_IEC61850", True):
+            with patch("pyiec61850.sv.publisher.iec61850") as mock_iec:
+                mock_iec.SVPublisher_create.return_value = Mock()
+                mock_iec.SVPublisher_addASDU.return_value = Mock()
+
+                from pyiec61850.sv import SVPublisher
+
+                pub = SVPublisher("eth0")
+                pub.set_smp_rate(3)
+                pub.start()
+                pub.publish_samples([1])
+                pub.publish_samples([2])
+                pub.publish_samples([3])
+
+                self.assertEqual(pub._smp_cnt, 0)
+
+    def test_publish_exception_raises_publish_error(self):
+        """Exception during publish must raise PublishError."""
+        with patch("pyiec61850.sv.publisher._HAS_IEC61850", True):
+            with patch("pyiec61850.sv.publisher.iec61850") as mock_iec:
+                mock_iec.SVPublisher_create.return_value = Mock()
+                mock_iec.SVPublisher_addASDU.return_value = Mock()
+                mock_iec.SVPublisher_ASDU_setINT32.side_effect = RuntimeError("fail")
+
+                from pyiec61850.sv import PublishError, SVPublisher
+
+                pub = SVPublisher("eth0")
+                pub.start()
+                with self.assertRaises(PublishError):
+                    pub.publish_samples([1])
+
+    def test_cleanup_destroy_exception_still_clears(self):
+        """If SVPublisher_destroy throws, references must still be cleared."""
+        with patch("pyiec61850.sv.publisher._HAS_IEC61850", True):
+            with patch("pyiec61850.sv.publisher.iec61850") as mock_iec:
+                mock_iec.SVPublisher_destroy.side_effect = RuntimeError("destroy failed")
+
+                from pyiec61850.sv import SVPublisher
+
+                pub = SVPublisher("eth0")
+                pub._running = True
+                pub._publisher = Mock()
+                pub._asdu = Mock()
+
+                pub.stop()  # Must not raise
+
+                self.assertIsNone(pub._publisher)
+                self.assertIsNone(pub._asdu)
+                self.assertFalse(pub.is_running)
+
+    def test_double_stop_no_crash(self):
+        """Calling stop() twice must not crash."""
+        with patch("pyiec61850.sv.publisher._HAS_IEC61850", True):
+            with patch("pyiec61850.sv.publisher.iec61850") as mock_iec:
+                mock_iec.SVPublisher_create.return_value = Mock()
+                mock_iec.SVPublisher_addASDU.return_value = Mock()
+
+                from pyiec61850.sv import SVPublisher
+
+                pub = SVPublisher("eth0")
+                pub.start()
+                pub.stop()
+                pub.stop()  # Must be no-op
+                self.assertFalse(pub.is_running)
+
+
 if __name__ == "__main__":
     unittest.main()
