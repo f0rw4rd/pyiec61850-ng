@@ -200,6 +200,31 @@ class TestGooseSubscriber(unittest.TestCase):
 
                 mock_iec.GooseReceiver_start.assert_called_once()
 
+    def test_start_subscriber_create_returns_null(self):
+        """GooseSubscriber_create returning NULL must raise SubscriptionError."""
+        with patch("pyiec61850.goose.subscriber._HAS_IEC61850", True):
+            with patch("pyiec61850.goose.subscriber.iec61850") as mock_iec:
+                mock_iec.GooseSubscriber_create.return_value = None
+
+                from pyiec61850.goose import GooseSubscriber, SubscriptionError
+
+                sub = GooseSubscriber("eth0", "myIED/LLN0$GO$gcb01")
+                with self.assertRaises(SubscriptionError):
+                    sub.start()
+
+    def test_start_receiver_create_returns_null(self):
+        """GooseReceiver_create returning NULL must raise SubscriptionError."""
+        with patch("pyiec61850.goose.subscriber._HAS_IEC61850", True):
+            with patch("pyiec61850.goose.subscriber.iec61850") as mock_iec:
+                mock_iec.GooseSubscriber_create.return_value = Mock()
+                mock_iec.GooseReceiver_create.return_value = None
+
+                from pyiec61850.goose import GooseSubscriber, SubscriptionError
+
+                sub = GooseSubscriber("eth0", "myIED/LLN0$GO$gcb01")
+                with self.assertRaises(SubscriptionError):
+                    sub.start()
+
     def test_start_already_running(self):
         with patch("pyiec61850.goose.subscriber._HAS_IEC61850", True):
             with patch("pyiec61850.goose.subscriber.iec61850"):

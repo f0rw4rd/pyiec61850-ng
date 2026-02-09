@@ -1,6 +1,6 @@
 FROM python:3.12-slim-bookworm AS builder
 
-ARG LIBIEC61850_VERSION=v1.6.0
+ARG LIBIEC61850_VERSION=v1.6.1
 ARG LIBIEC61850_PINNED_SHA=
 ARG MBEDTLS_SHA256=
 ARG PACKAGE_VERSION=0.0.0
@@ -42,14 +42,9 @@ RUN cd libiec61850/third_party/mbedtls && \
     fi && \
     tar -xzf v3.6.0.tar.gz
 
-# Copy and apply patches
-COPY patches/ /build/patches/
-RUN cd /build/libiec61850 && \
-    if [ -f /build/patches/iec61850.i.patch ]; then \
-        IEC_FILE=$(find . -name "iec61850.i") && \
-        echo "Applying patch to ${IEC_FILE}" && \
-        patch -p1 ${IEC_FILE} < /build/patches/iec61850.i.patch; \
-    fi
+# Replace upstream SWIG interface with our enhanced version
+# (includes NULL-safety typemaps, file download helpers, IedClientError typemap)
+COPY patches/iec61850.i /build/libiec61850/pyiec61850/iec61850.i
 
 # Build libiec61850 with Python bindings
 WORKDIR /build/libiec61850
