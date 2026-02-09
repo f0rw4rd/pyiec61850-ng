@@ -5,3 +5,12 @@ repos:
       - id: ruff
         args: [--fix]
       - id: ruff-format
+  - repo: local
+    hooks:
+      - id: tests
+        name: tests
+        entry: python -m pytest tests/ -x -q --ignore=tests/test_import.py --ignore=tests/test_connection.py --ignore=tests/test_data_model.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
