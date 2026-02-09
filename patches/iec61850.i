@@ -22,6 +22,90 @@ char* toCharP(void * v)
 {
     return (char *) v;
 }
+FileDirectoryEntry toFileDirectoryEntry(void* data)
+{
+    return (FileDirectoryEntry) data;
+}
+MmsError* MmsError_create()
+{
+    MmsError* error = (MmsError*) malloc(sizeof(MmsError));
+    if (error != NULL)
+        *error = MMS_ERROR_NONE;
+    return error;
+}
+
+int MmsError_getValue(MmsError* self)
+{
+    if (self == NULL)
+        return -1;
+    return (int)*self;
+}
+
+void MmsErrror_destroy(MmsError* error) {
+    free(error);
+}
+
+typedef struct {
+    FILE* file;
+    bool error;
+} FileDownloadContext;
+
+void
+fileReadHandler(void* parameter, int32_t frsmId, uint8_t* buffer, uint32_t bytesReceived)
+{
+    FileDownloadContext* context = (FileDownloadContext*) parameter;
+    if (context && context->file) {
+        size_t bytesWritten = fwrite(buffer, 1, bytesReceived, context->file);
+        if (bytesWritten != bytesReceived) {
+            context->error = true;
+        }
+    }
+}
+
+bool MmsConnection_downloadFile(MmsConnection connection, MmsError* mmsError, const char* remoteFilePath, const char* localFilePath)
+{
+    if (connection == NULL || mmsError == NULL || remoteFilePath == NULL || localFilePath == NULL) {
+        if (mmsError)
+            *mmsError = MMS_ERROR_INVALID_ARGUMENTS;
+        return false;
+    }
+
+    bool success = false;
+    uint32_t fileSize = 0;
+    uint64_t lastModified = 0;
+    int32_t frsmId = -1;
+    FileDownloadContext context = {NULL, false};
+
+    context.file = fopen(localFilePath, "wb");
+    if (context.file == NULL) {
+        *mmsError = MMS_ERROR_FILE_OTHER;
+        return false;
+    }
+
+    frsmId = MmsConnection_fileOpen(connection, mmsError, remoteFilePath, 0, &fileSize, &lastModified);
+    if (frsmId < 0 || *mmsError != MMS_ERROR_NONE) {
+        fclose(context.file);
+        return false;
+    }
+
+    bool moreFollows = true;
+    while (moreFollows && !context.error) {
+        moreFollows = MmsConnection_fileRead(connection, mmsError, frsmId, fileReadHandler, &context);
+        if (*mmsError != MMS_ERROR_NONE) {
+            context.error = true;
+        }
+    }
+
+    MmsConnection_fileClose(connection, mmsError, frsmId);
+    fclose(context.file);
+
+    success = !context.error && (*mmsError == MMS_ERROR_NONE);
+    if (!success) {
+        remove(localFilePath);
+    }
+    return success;
+}
+
 DataAttribute* toDataAttribute(DataObject * DO)
 { return (DataAttribute*)DO;}
 DataAttribute* toDataAttribute(ModelNode * MN)
@@ -333,6 +417,12 @@ typedef uint64_t nsSinceEpoch;
 
 ModelNode* toModelNode(LogicalNode *);
 ModelNode* toModelNode(DataObject *);
+bool MmsConnection_downloadFile(MmsConnection connection, MmsError* mmsError, const char* remoteFilePath, const char* localFilePath);
+FileDirectoryEntry toFileDirectoryEntry(void*);
+MmsError* MmsError_create();
+void MmsErrror_destroy(MmsError* error);
+int MmsError_getValue(MmsError* self);
+void fileReadHandler(void* parameter, int32_t frsmId, uint8_t* buffer, uint32_t bytesReceived);
 DataAttribute* toDataAttribute(DataObject *);
 DataAttribute* toDataAttribute(ModelNode *);
 DataObject* toDataObject(ModelNode *);
