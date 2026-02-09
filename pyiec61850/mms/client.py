@@ -24,43 +24,38 @@ Example:
                 print(f"  Node: {node}")
 """
 
-from dataclasses import dataclass
-from typing import Any, List, Optional, Tuple
 import logging
+from dataclasses import dataclass
+from typing import Any, List, Optional
 
 try:
     import pyiec61850.pyiec61850 as iec61850
+
     _HAS_IEC61850 = True
 except ImportError:
     _HAS_IEC61850 = False
     iec61850 = None
 
 # MMS type constants (fallback values if library not loaded)
-MMS_BOOLEAN = getattr(iec61850, 'MMS_BOOLEAN', 0) if iec61850 else 0
-MMS_INTEGER = getattr(iec61850, 'MMS_INTEGER', 1) if iec61850 else 1
-MMS_UNSIGNED = getattr(iec61850, 'MMS_UNSIGNED', 2) if iec61850 else 2
-MMS_FLOAT = getattr(iec61850, 'MMS_FLOAT', 3) if iec61850 else 3
-MMS_VISIBLE_STRING = getattr(iec61850, 'MMS_VISIBLE_STRING', 7) if iec61850 else 7
-MMS_BIT_STRING = getattr(iec61850, 'MMS_BIT_STRING', 4) if iec61850 else 4
+MMS_BOOLEAN = getattr(iec61850, "MMS_BOOLEAN", 0) if iec61850 else 0
+MMS_INTEGER = getattr(iec61850, "MMS_INTEGER", 1) if iec61850 else 1
+MMS_UNSIGNED = getattr(iec61850, "MMS_UNSIGNED", 2) if iec61850 else 2
+MMS_FLOAT = getattr(iec61850, "MMS_FLOAT", 3) if iec61850 else 3
+MMS_VISIBLE_STRING = getattr(iec61850, "MMS_VISIBLE_STRING", 7) if iec61850 else 7
+MMS_BIT_STRING = getattr(iec61850, "MMS_BIT_STRING", 4) if iec61850 else 4
 
 from .exceptions import (
-    LibraryNotFoundError,
     ConnectionFailedError,
-    ConnectionTimeoutError,
-    NotConnectedError,
+    LibraryNotFoundError,
     MMSError,
+    NotConnectedError,
     ReadError,
     WriteError,
 )
 from .utils import (
-    safe_to_char_p,
-    safe_linked_list_iter,
-    safe_linked_list_destroy,
-    safe_mms_value_delete,
-    safe_identity_destroy,
-    LinkedListGuard,
-    MmsValueGuard,
     IdentityGuard,
+    LinkedListGuard,
+    safe_mms_value_delete,
     unpack_result,
 )
 
@@ -70,6 +65,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ServerIdentity:
     """MMS Server identity information."""
+
     vendor: Optional[str] = None
     model: Optional[str] = None
     revision: Optional[str] = None
@@ -78,6 +74,7 @@ class ServerIdentity:
 @dataclass
 class DataAttribute:
     """MMS Data attribute with value."""
+
     name: str
     value: Any
     type_name: str = ""
@@ -225,7 +222,7 @@ class MMSClient:
     def _get_error_string(self, error: int) -> str:
         """Get human-readable error string."""
         try:
-            if hasattr(iec61850, 'IedClientError_toString'):
+            if hasattr(iec61850, "IedClientError_toString"):
                 return iec61850.IedClientError_toString(error)
         except Exception:
             pass
@@ -255,9 +252,9 @@ class MMSClient:
                 # Use IdentityGuard for automatic cleanup (Issue #4)
                 with IdentityGuard(value):
                     return ServerIdentity(
-                        vendor=getattr(value, 'vendorName', None),
-                        model=getattr(value, 'modelName', None),
-                        revision=getattr(value, 'revision', None),
+                        vendor=getattr(value, "vendorName", None),
+                        model=getattr(value, "modelName", None),
+                        revision=getattr(value, "revision", None),
                     )
 
             return ServerIdentity()
@@ -321,9 +318,7 @@ class MMSClient:
         self._ensure_connected()
 
         try:
-            result = iec61850.IedConnection_getLogicalNodeList(
-                self._connection, device
-            )
+            result = iec61850.IedConnection_getLogicalNodeList(self._connection, device)
             value, error, ok = unpack_result(result)
 
             if not ok:
@@ -431,9 +426,7 @@ class MMSClient:
             # Parse reference to get functional constraint
             fc = iec61850.IEC61850_FC_ST  # Default to status
 
-            result = iec61850.IedConnection_readObject(
-                self._connection, reference, fc
-            )
+            result = iec61850.IedConnection_readObject(self._connection, reference, fc)
             value, error, ok = unpack_result(result)
 
             if not ok:
@@ -506,9 +499,7 @@ class MMSClient:
 
             fc = iec61850.IEC61850_FC_ST
 
-            error = iec61850.IedConnection_writeObject(
-                self._connection, reference, fc, mms_value
-            )
+            error = iec61850.IedConnection_writeObject(self._connection, reference, fc, mms_value)
 
             if error != iec61850.IED_ERROR_OK:
                 raise WriteError(f"Write failed: {self._get_error_string(error)}")
@@ -546,7 +537,7 @@ class MMSClient:
     # Context Manager Support
     # =========================================================================
 
-    def __enter__(self) -> 'MMSClient':
+    def __enter__(self) -> "MMSClient":
         """Context manager entry."""
         return self
 

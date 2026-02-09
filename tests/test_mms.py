@@ -6,9 +6,9 @@ These tests verify the safety wrappers work correctly without
 requiring the actual C library (uses mocks).
 """
 
-import unittest
-from unittest.mock import Mock, MagicMock, patch
 import logging
+import unittest
+from unittest.mock import Mock, patch
 
 # Suppress logging during tests
 logging.disable(logging.CRITICAL)
@@ -20,44 +20,38 @@ class TestMmsImports(unittest.TestCase):
     def test_import_module(self):
         """Test basic module import."""
         from pyiec61850 import mms
+
         self.assertIsNotNone(mms)
 
     def test_import_client(self):
         """Test MMSClient import."""
         from pyiec61850.mms import MMSClient
+
         self.assertIsNotNone(MMSClient)
 
     def test_import_utils(self):
         """Test utility functions import."""
         from pyiec61850.mms import (
             safe_to_char_p,
-            safe_linked_list_iter,
-            safe_linked_list_destroy,
-            safe_mms_error_destroy,
-            safe_mms_value_delete,
-            safe_identity_destroy,
         )
+
         self.assertIsNotNone(safe_to_char_p)
 
     def test_import_guards(self):
         """Test context manager guards import."""
         from pyiec61850.mms import (
             LinkedListGuard,
-            MmsValueGuard,
-            MmsErrorGuard,
-            IdentityGuard,
         )
+
         self.assertIsNotNone(LinkedListGuard)
 
     def test_import_exceptions(self):
         """Test exception classes import."""
         from pyiec61850.mms import (
-            MMSError,
-            LibraryNotFoundError,
             ConnectionFailedError,
-            NotConnectedError,
-            NullPointerError,
+            MMSError,
         )
+
         self.assertTrue(issubclass(ConnectionFailedError, MMSError))
 
 
@@ -67,8 +61,9 @@ class TestSafeToCharP(unittest.TestCase):
     def test_none_input_returns_none(self):
         """NULL pointer should return None, not crash."""
         from pyiec61850.mms.utils import safe_to_char_p
-        with patch('pyiec61850.mms.utils._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.utils.iec61850') as mock_iec:
+
+        with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils.iec61850") as mock_iec:
                 result = safe_to_char_p(None)
                 self.assertIsNone(result)
                 # toCharP should NOT be called with None
@@ -77,8 +72,9 @@ class TestSafeToCharP(unittest.TestCase):
     def test_zero_input_returns_none(self):
         """Zero (NULL in C) should return None."""
         from pyiec61850.mms.utils import safe_to_char_p
-        with patch('pyiec61850.mms.utils._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.utils.iec61850') as mock_iec:
+
+        with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils.iec61850") as mock_iec:
                 result = safe_to_char_p(0)
                 self.assertIsNone(result)
                 mock_iec.toCharP.assert_not_called()
@@ -86,8 +82,9 @@ class TestSafeToCharP(unittest.TestCase):
     def test_valid_pointer_calls_toCharP(self):
         """Valid pointer should call toCharP."""
         from pyiec61850.mms.utils import safe_to_char_p
-        with patch('pyiec61850.mms.utils._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.utils.iec61850') as mock_iec:
+
+        with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils.iec61850") as mock_iec:
                 mock_iec.toCharP.return_value = "test_string"
                 mock_ptr = Mock()
                 result = safe_to_char_p(mock_ptr)
@@ -97,8 +94,9 @@ class TestSafeToCharP(unittest.TestCase):
     def test_toCharP_exception_returns_none(self):
         """Exception in toCharP should return None, not crash."""
         from pyiec61850.mms.utils import safe_to_char_p
-        with patch('pyiec61850.mms.utils._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.utils.iec61850') as mock_iec:
+
+        with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils.iec61850") as mock_iec:
                 mock_iec.toCharP.side_effect = Exception("Segfault avoided!")
                 mock_ptr = Mock()
                 result = safe_to_char_p(mock_ptr)
@@ -111,16 +109,18 @@ class TestSafeLinkedListIter(unittest.TestCase):
     def test_none_list_yields_nothing(self):
         """NULL list should yield nothing."""
         from pyiec61850.mms.utils import safe_linked_list_iter
-        with patch('pyiec61850.mms.utils._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.utils.iec61850'):
+
+        with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils.iec61850"):
                 result = list(safe_linked_list_iter(None))
                 self.assertEqual(result, [])
 
     def test_iterates_valid_elements(self):
         """Should iterate and convert valid elements."""
         from pyiec61850.mms.utils import safe_linked_list_iter
-        with patch('pyiec61850.mms.utils._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.utils.iec61850') as mock_iec:
+
+        with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils.iec61850") as mock_iec:
                 # Setup mock linked list with 3 elements
                 mock_list = Mock()
                 elem1, elem2, elem3 = Mock(), Mock(), Mock()
@@ -139,8 +139,9 @@ class TestSafeLinkedListIter(unittest.TestCase):
     def test_skips_null_data_elements(self):
         """NULL data elements should be skipped (Issue #2)."""
         from pyiec61850.mms.utils import safe_linked_list_iter
-        with patch('pyiec61850.mms.utils._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.utils.iec61850') as mock_iec:
+
+        with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils.iec61850") as mock_iec:
                 mock_list = Mock()
                 elem1, elem2 = Mock(), Mock()
 
@@ -160,8 +161,9 @@ class TestLinkedListGuard(unittest.TestCase):
     def test_destroys_list_on_exit(self):
         """List should be destroyed when exiting context."""
         from pyiec61850.mms.utils import LinkedListGuard
-        with patch('pyiec61850.mms.utils._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.utils.iec61850') as mock_iec:
+
+        with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils.iec61850") as mock_iec:
                 mock_list = Mock()
 
                 with LinkedListGuard(mock_list) as guard:
@@ -172,8 +174,9 @@ class TestLinkedListGuard(unittest.TestCase):
     def test_nullifies_after_destroy(self):
         """Reference should be None after destroy (prevents double-free)."""
         from pyiec61850.mms.utils import LinkedListGuard
-        with patch('pyiec61850.mms.utils._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.utils.iec61850'):
+
+        with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils.iec61850"):
                 mock_list = Mock()
                 guard = LinkedListGuard(mock_list)
 
@@ -185,8 +188,9 @@ class TestLinkedListGuard(unittest.TestCase):
     def test_handles_none_list(self):
         """Should handle None list gracefully."""
         from pyiec61850.mms.utils import LinkedListGuard
-        with patch('pyiec61850.mms.utils._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.utils.iec61850') as mock_iec:
+
+        with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils.iec61850") as mock_iec:
                 with LinkedListGuard(None) as guard:
                     self.assertIsNone(guard.list)
 
@@ -196,8 +200,9 @@ class TestLinkedListGuard(unittest.TestCase):
     def test_iterable(self):
         """Guard should be directly iterable."""
         from pyiec61850.mms.utils import LinkedListGuard
-        with patch('pyiec61850.mms.utils._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.utils.iec61850') as mock_iec:
+
+        with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils.iec61850") as mock_iec:
                 mock_list = Mock()
                 mock_iec.LinkedList_getNext.side_effect = [Mock(), None]
                 mock_iec.LinkedList_getData.return_value = Mock()
@@ -215,8 +220,9 @@ class TestMmsValueGuard(unittest.TestCase):
     def test_deletes_value_on_exit(self):
         """MmsValue should be deleted when exiting context."""
         from pyiec61850.mms.utils import MmsValueGuard
-        with patch('pyiec61850.mms.utils._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.utils.iec61850') as mock_iec:
+
+        with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils.iec61850") as mock_iec:
                 mock_value = Mock()
 
                 with MmsValueGuard(mock_value) as guard:
@@ -227,8 +233,9 @@ class TestMmsValueGuard(unittest.TestCase):
     def test_nullifies_after_delete(self):
         """Reference should be None after delete."""
         from pyiec61850.mms.utils import MmsValueGuard
-        with patch('pyiec61850.mms.utils._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.utils.iec61850'):
+
+        with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils.iec61850"):
                 mock_value = Mock()
                 guard = MmsValueGuard(mock_value)
 
@@ -244,8 +251,9 @@ class TestMmsErrorGuard(unittest.TestCase):
     def test_uses_correct_destroy_function(self):
         """Should use MmsError_destroy (2 r's), not MmsErrror_destroy (3 r's)."""
         from pyiec61850.mms.utils import MmsErrorGuard
-        with patch('pyiec61850.mms.utils._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.utils.iec61850') as mock_iec:
+
+        with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils.iec61850") as mock_iec:
                 mock_iec.MmsError_destroy = Mock()
                 mock_error = Mock()
 
@@ -262,8 +270,9 @@ class TestIdentityGuard(unittest.TestCase):
     def test_destroys_identity_on_exit(self):
         """Identity should be destroyed when exiting context."""
         from pyiec61850.mms.utils import IdentityGuard
-        with patch('pyiec61850.mms.utils._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.utils.iec61850') as mock_iec:
+
+        with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils.iec61850") as mock_iec:
                 mock_identity = Mock()
 
                 with IdentityGuard(mock_identity) as guard:
@@ -274,8 +283,9 @@ class TestIdentityGuard(unittest.TestCase):
     def test_handles_none_identity(self):
         """Should handle None identity (Issue #4)."""
         from pyiec61850.mms.utils import IdentityGuard
-        with patch('pyiec61850.mms.utils._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.utils.iec61850') as mock_iec:
+
+        with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils.iec61850") as mock_iec:
                 with IdentityGuard(None) as guard:
                     self.assertIsNone(guard.identity)
 
@@ -287,30 +297,33 @@ class TestMMSClient(unittest.TestCase):
 
     def test_client_creation(self):
         """Client should be creatable when library available."""
-        with patch('pyiec61850.mms.client._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.client.iec61850'):
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.client.iec61850"):
                 from pyiec61850.mms import MMSClient
+
                 client = MMSClient()
                 self.assertIsNotNone(client)
                 self.assertFalse(client.is_connected)
 
     def test_client_raises_without_library(self):
         """Client should raise LibraryNotFoundError if library missing."""
-        with patch('pyiec61850.mms.client._HAS_IEC61850', False):
-            from pyiec61850.mms import MMSClient, LibraryNotFoundError
+        with patch("pyiec61850.mms.client._HAS_IEC61850", False):
+            from pyiec61850.mms import LibraryNotFoundError, MMSClient
+
             with self.assertRaises(LibraryNotFoundError):
                 MMSClient()
 
     def test_connect_success(self):
         """Successful connection."""
-        with patch('pyiec61850.mms.client._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.client.iec61850') as mock_iec:
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.client.iec61850") as mock_iec:
                 mock_conn = Mock()
                 mock_iec.IedConnection_create.return_value = mock_conn
                 mock_iec.IED_ERROR_OK = 0
                 mock_iec.IedConnection_connect.return_value = 0  # Use actual value
 
                 from pyiec61850.mms import MMSClient
+
                 client = MMSClient()
                 result = client.connect("192.168.1.100", 102)
 
@@ -321,14 +334,15 @@ class TestMMSClient(unittest.TestCase):
 
     def test_connect_failure(self):
         """Connection failure should raise ConnectionFailedError."""
-        with patch('pyiec61850.mms.client._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.client.iec61850') as mock_iec:
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.client.iec61850") as mock_iec:
                 mock_conn = Mock()
                 mock_iec.IedConnection_create.return_value = mock_conn
                 mock_iec.IedConnection_connect.return_value = 1  # Error
                 mock_iec.IED_ERROR_OK = 0
 
-                from pyiec61850.mms import MMSClient, ConnectionFailedError
+                from pyiec61850.mms import ConnectionFailedError, MMSClient
+
                 client = MMSClient()
 
                 with self.assertRaises(ConnectionFailedError):
@@ -336,14 +350,15 @@ class TestMMSClient(unittest.TestCase):
 
     def test_disconnect_cleanup(self):
         """Disconnect should clean up resources."""
-        with patch('pyiec61850.mms.client._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.client.iec61850') as mock_iec:
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.client.iec61850") as mock_iec:
                 mock_conn = Mock()
                 mock_iec.IedConnection_create.return_value = mock_conn
                 mock_iec.IedConnection_connect.return_value = 0
                 mock_iec.IED_ERROR_OK = 0
 
                 from pyiec61850.mms import MMSClient
+
                 client = MMSClient()
                 client.connect("192.168.1.100", 102)
                 client.disconnect()
@@ -354,14 +369,15 @@ class TestMMSClient(unittest.TestCase):
 
     def test_context_manager(self):
         """Context manager should auto-disconnect."""
-        with patch('pyiec61850.mms.client._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.client.iec61850') as mock_iec:
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.client.iec61850") as mock_iec:
                 mock_conn = Mock()
                 mock_iec.IedConnection_create.return_value = mock_conn
                 mock_iec.IedConnection_connect.return_value = 0
                 mock_iec.IED_ERROR_OK = 0
 
                 from pyiec61850.mms import MMSClient
+
                 with MMSClient() as client:
                     client.connect("192.168.1.100", 102)
 
@@ -370,10 +386,10 @@ class TestMMSClient(unittest.TestCase):
 
     def test_get_logical_devices_uses_guard(self):
         """get_logical_devices should use safe LinkedList handling."""
-        with patch('pyiec61850.mms.client._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.utils._HAS_IEC61850', True):
-                with patch('pyiec61850.mms.client.iec61850') as mock_iec:
-                    with patch('pyiec61850.mms.utils.iec61850', mock_iec):
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+                with patch("pyiec61850.mms.client.iec61850") as mock_iec:
+                    with patch("pyiec61850.mms.utils.iec61850", mock_iec):
                         mock_conn = Mock()
                         mock_iec.IedConnection_create.return_value = mock_conn
                         mock_iec.IedConnection_connect.return_value = 0
@@ -390,6 +406,7 @@ class TestMMSClient(unittest.TestCase):
                         mock_iec.toCharP.return_value = "TestDevice"
 
                         from pyiec61850.mms import MMSClient
+
                         client = MMSClient()
                         client.connect("192.168.1.100", 102)
                         devices = client.get_logical_devices()
@@ -400,9 +417,10 @@ class TestMMSClient(unittest.TestCase):
 
     def test_not_connected_error(self):
         """Operations without connection should raise NotConnectedError."""
-        with patch('pyiec61850.mms.client._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.client.iec61850'):
+        with patch("pyiec61850.mms.client._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.client.iec61850"):
                 from pyiec61850.mms import MMSClient, NotConnectedError
+
                 client = MMSClient()
 
                 with self.assertRaises(NotConnectedError):
@@ -415,8 +433,9 @@ class TestUnpackResult(unittest.TestCase):
     def test_tuple_result(self):
         """Should unpack (value, error) tuples."""
         from pyiec61850.mms.utils import unpack_result
-        with patch('pyiec61850.mms.utils._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.utils.iec61850') as mock_iec:
+
+        with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils.iec61850") as mock_iec:
                 mock_iec.IED_ERROR_OK = 0
 
                 value, error, ok = unpack_result(("data", 0))
@@ -427,8 +446,9 @@ class TestUnpackResult(unittest.TestCase):
     def test_tuple_result_with_error(self):
         """Should detect error in tuple result."""
         from pyiec61850.mms.utils import unpack_result
-        with patch('pyiec61850.mms.utils._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.utils.iec61850') as mock_iec:
+
+        with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils.iec61850") as mock_iec:
                 mock_iec.IED_ERROR_OK = 0
 
                 value, error, ok = unpack_result(("data", 5))
@@ -439,8 +459,9 @@ class TestUnpackResult(unittest.TestCase):
     def test_single_value_result(self):
         """Should handle single value (non-tuple) results."""
         from pyiec61850.mms.utils import unpack_result
-        with patch('pyiec61850.mms.utils._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.utils.iec61850') as mock_iec:
+
+        with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils.iec61850") as mock_iec:
                 mock_iec.IED_ERROR_OK = 0
 
                 value, error, ok = unpack_result("just_data")
@@ -495,5 +516,5 @@ class TestCleanupAll(unittest.TestCase):
         cleanup2.assert_called_once_with(resource2)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

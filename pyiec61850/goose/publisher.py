@@ -16,26 +16,25 @@ Example:
         pub.publish([True, 42, 3.14])
 """
 
-from typing import Any, List, Optional
 import logging
+from typing import Any, List
 
 try:
     import pyiec61850.pyiec61850 as iec61850
+
     _HAS_IEC61850 = True
 except ImportError:
     _HAS_IEC61850 = False
     iec61850 = None
 
 from .exceptions import (
-    LibraryNotFoundError,
-    InterfaceError,
-    PublishError,
-    ConfigurationError,
-    NotStartedError,
     AlreadyStartedError,
-    GooseError,
+    ConfigurationError,
+    InterfaceError,
+    LibraryNotFoundError,
+    NotStartedError,
+    PublishError,
 )
-from .types import GoosePublisherConfig
 
 logger = logging.getLogger(__name__)
 
@@ -280,9 +279,7 @@ class GoosePublisher:
             )
 
             if not self._publisher:
-                raise PublishError(
-                    f"Failed to create GoosePublisher on {self._interface}"
-                )
+                raise PublishError(f"Failed to create GoosePublisher on {self._interface}")
 
             # Configure publisher
             if self._go_cb_ref:
@@ -295,9 +292,7 @@ class GoosePublisher:
             iec61850.GoosePublisher_setTimeAllowedToLive(
                 self._publisher, self._time_allowed_to_live
             )
-            iec61850.GoosePublisher_setNeedsCommission(
-                self._publisher, self._needs_commissioning
-            )
+            iec61850.GoosePublisher_setNeedsCommission(self._publisher, self._needs_commissioning)
 
             self._running = True
             logger.info(f"GOOSE publisher started on {self._interface}")
@@ -335,9 +330,7 @@ class GoosePublisher:
                 if mms_val:
                     iec61850.LinkedList_add(data_set_values, mms_val)
 
-            result = iec61850.GoosePublisher_publish(
-                self._publisher, data_set_values
-            )
+            result = iec61850.GoosePublisher_publish(self._publisher, data_set_values)
 
             if result != 0:
                 raise PublishError(f"GoosePublisher_publish returned error: {result}")
@@ -351,9 +344,7 @@ class GoosePublisher:
         finally:
             if data_set_values:
                 try:
-                    iec61850.LinkedList_destroyDeep(
-                        data_set_values, iec61850.MmsValue_delete
-                    )
+                    iec61850.LinkedList_destroyDeep(data_set_values, iec61850.MmsValue_delete)
                 except Exception:
                     try:
                         iec61850.LinkedList_destroy(data_set_values)
@@ -415,7 +406,7 @@ class GoosePublisher:
         self._comm_params = None
         self._running = False
 
-    def __enter__(self) -> 'GoosePublisher':
+    def __enter__(self) -> "GoosePublisher":
         """Context manager entry."""
         return self
 

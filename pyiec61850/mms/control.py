@@ -22,13 +22,14 @@ Example:
         ctrl.operate("myLD/CSWI1.Pos", True)
 """
 
-from dataclasses import dataclass
-from typing import Any, Callable, Dict, Optional
-from datetime import datetime, timezone
 import logging
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import Any, Callable, Dict, Optional
 
 try:
     import pyiec61850.pyiec61850 as iec61850
+
     _HAS_IEC61850 = True
 except ImportError:
     _HAS_IEC61850 = False
@@ -36,9 +37,8 @@ except ImportError:
 
 from .exceptions import (
     LibraryNotFoundError,
-    NotConnectedError,
     MMSError,
-    WriteError,
+    NotConnectedError,
 )
 
 logger = logging.getLogger(__name__)
@@ -101,6 +101,7 @@ CONTROL_MODEL_SBO_ENHANCED = 4
 @dataclass
 class ControlResult:
     """Result of a control operation."""
+
     success: bool = False
     object_ref: str = ""
     last_error: int = 0
@@ -185,9 +186,7 @@ class ControlClient:
 
         control = iec61850.ControlObjectClient_create(object_ref, conn)
         if not control:
-            raise ControlError(
-                f"Failed to create ControlObjectClient for '{object_ref}'"
-            )
+            raise ControlError(f"Failed to create ControlObjectClient for '{object_ref}'")
 
         self._control_objects[object_ref] = control
         return control
@@ -213,9 +212,7 @@ class ControlClient:
             if not result:
                 last_error = 0
                 try:
-                    last_error = iec61850.ControlObjectClient_getLastApplError(
-                        control
-                    )
+                    last_error = iec61850.ControlObjectClient_getLastApplError(control)
                 except Exception:
                     pass
                 raise SelectError(object_ref, f"server rejected (error {last_error})")
@@ -251,9 +248,7 @@ class ControlClient:
             if not mms_value:
                 raise SelectError(object_ref, f"unsupported value type: {type(value)}")
 
-            result = iec61850.ControlObjectClient_selectWithValue(
-                control, mms_value
-            )
+            result = iec61850.ControlObjectClient_selectWithValue(control, mms_value)
 
             if not result:
                 raise SelectError(object_ref, "server rejected select-with-value")
@@ -290,23 +285,17 @@ class ControlClient:
             control = self._get_or_create_control(object_ref)
             mms_value = self._create_ctl_value(value)
             if not mms_value:
-                raise OperateError(
-                    object_ref, f"unsupported value type: {type(value)}"
-                )
+                raise OperateError(object_ref, f"unsupported value type: {type(value)}")
 
             result = iec61850.ControlObjectClient_operate(control, mms_value, 0)
 
             if not result:
                 last_error = 0
                 try:
-                    last_error = iec61850.ControlObjectClient_getLastApplError(
-                        control
-                    )
+                    last_error = iec61850.ControlObjectClient_getLastApplError(control)
                 except Exception:
                     pass
-                raise OperateError(
-                    object_ref, f"server rejected (error {last_error})"
-                )
+                raise OperateError(object_ref, f"server rejected (error {last_error})")
 
             logger.info(f"Operated: {object_ref} = {value}")
             return True
@@ -339,10 +328,8 @@ class ControlClient:
             control = self._get_or_create_control(object_ref)
 
             # Set control model to direct
-            if hasattr(iec61850, 'ControlObjectClient_setControlModel'):
-                iec61850.ControlObjectClient_setControlModel(
-                    control, CONTROL_MODEL_DIRECT_NORMAL
-                )
+            if hasattr(iec61850, "ControlObjectClient_setControlModel"):
+                iec61850.ControlObjectClient_setControlModel(control, CONTROL_MODEL_DIRECT_NORMAL)
 
             return self.operate(object_ref, value)
 
@@ -407,8 +394,8 @@ class ControlClient:
         try:
             control = self._get_or_create_control(object_ref)
 
-            if hasattr(iec61850, 'CommandTermHandler') and hasattr(
-                iec61850, 'CommandTermSubscriber'
+            if hasattr(iec61850, "CommandTermHandler") and hasattr(
+                iec61850, "CommandTermSubscriber"
             ):
                 handler = _PyCommandTermHandler(callback, object_ref)
                 subscriber = iec61850.CommandTermSubscriber()
@@ -425,9 +412,7 @@ class ControlClient:
                 self._command_term_subscribers[object_ref] = subscriber
             else:
                 # Direct API fallback
-                iec61850.ControlObjectClient_setCommandTerminationHandler(
-                    control, None, None
-                )
+                iec61850.ControlObjectClient_setCommandTerminationHandler(control, None, None)
 
             logger.info(f"Command termination handler installed for {object_ref}")
 
@@ -436,9 +421,7 @@ class ControlClient:
         except ControlError:
             raise
         except Exception as e:
-            raise ControlError(
-                f"Failed to install command term handler for {object_ref}: {e}"
-            )
+            raise ControlError(f"Failed to install command term handler for {object_ref}: {e}")
 
     def get_control_model(self, object_ref: str) -> int:
         """
@@ -499,7 +482,7 @@ class ControlClient:
             logger.warning(f"Failed to create control MmsValue: {e}")
             return None
 
-    def __enter__(self) -> 'ControlClient':
+    def __enter__(self) -> "ControlClient":
         """Context manager entry."""
         return self
 
@@ -521,7 +504,7 @@ class _PyCommandTermHandler:
         self._callback = callback
         self._object_ref = object_ref
 
-        if _HAS_IEC61850 and hasattr(iec61850, 'CommandTermHandler'):
+        if _HAS_IEC61850 and hasattr(iec61850, "CommandTermHandler"):
             try:
                 iec61850.CommandTermHandler.__init__(self)
             except Exception:
@@ -537,11 +520,9 @@ class _PyCommandTermHandler:
 
             try:
                 control = self._libiec61850_control_object_client
-                last_error = iec61850.ControlObjectClient_getLastApplError(
-                    control
-                )
+                last_error = iec61850.ControlObjectClient_getLastApplError(control)
                 result.last_error = last_error
-                result.success = (last_error == 0)
+                result.success = last_error == 0
             except Exception:
                 pass
 

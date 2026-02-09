@@ -15,24 +15,23 @@ Example:
         pub.publish_samples([1000, 2000, 3000, 4000, 500, 600, 700, 800])
 """
 
-from typing import Any, List, Optional
 import logging
+from typing import List
 
 try:
     import pyiec61850.pyiec61850 as iec61850
+
     _HAS_IEC61850 = True
 except ImportError:
     _HAS_IEC61850 = False
     iec61850 = None
 
 from .exceptions import (
-    LibraryNotFoundError,
-    InterfaceError,
-    PublishError,
-    ConfigurationError,
-    NotStartedError,
     AlreadyStartedError,
-    SVError,
+    ConfigurationError,
+    LibraryNotFoundError,
+    NotStartedError,
+    PublishError,
 )
 
 logger = logging.getLogger(__name__)
@@ -234,9 +233,7 @@ class SVPublisher:
             # Create SV publisher
             self._publisher = iec61850.SVPublisher_create(None, self._interface)
             if not self._publisher:
-                raise PublishError(
-                    f"Failed to create SVPublisher on {self._interface}"
-                )
+                raise PublishError(f"Failed to create SVPublisher on {self._interface}")
 
             # Create ASDU
             self._asdu = iec61850.SVPublisher_addASDU(
@@ -323,7 +320,7 @@ class SVPublisher:
         self._asdu = None
         self._running = False
 
-    def __enter__(self) -> 'SVPublisher':
+    def __enter__(self) -> "SVPublisher":
         """Context manager entry."""
         return self
 

@@ -5,9 +5,9 @@ Tests for pyiec61850.mms.gocb module - GOOSE Control Block client.
 All tests use mocks (no C library needed).
 """
 
-import unittest
-from unittest.mock import Mock, MagicMock, patch, call
 import logging
+import unittest
+from unittest.mock import Mock, patch
 
 logging.disable(logging.CRITICAL)
 
@@ -17,19 +17,23 @@ class TestGoCBImports(unittest.TestCase):
 
     def test_import_gocb_client(self):
         from pyiec61850.mms.gocb import GoCBClient
+
         self.assertIsNotNone(GoCBClient)
 
     def test_import_gocb_info(self):
         from pyiec61850.mms.gocb import GoCBInfo
+
         self.assertIsNotNone(GoCBInfo)
 
     def test_import_gocb_error(self):
-        from pyiec61850.mms.gocb import GoCBError
         from pyiec61850.mms.exceptions import MMSError
+        from pyiec61850.mms.gocb import GoCBError
+
         self.assertTrue(issubclass(GoCBError, MMSError))
 
     def test_import_from_mms_package(self):
-        from pyiec61850.mms import GoCBClient, GoCBInfo, GoCBError
+        from pyiec61850.mms import GoCBClient, GoCBError, GoCBInfo
+
         self.assertIsNotNone(GoCBClient)
         self.assertIsNotNone(GoCBInfo)
         self.assertIsNotNone(GoCBError)
@@ -40,6 +44,7 @@ class TestGoCBInfo(unittest.TestCase):
 
     def test_default_creation(self):
         from pyiec61850.mms.gocb import GoCBInfo
+
         info = GoCBInfo()
         self.assertEqual(info.gocb_ref, "")
         self.assertEqual(info.goose_id, "")
@@ -57,6 +62,7 @@ class TestGoCBInfo(unittest.TestCase):
 
     def test_creation_with_values(self):
         from pyiec61850.mms.gocb import GoCBInfo
+
         info = GoCBInfo(
             gocb_ref="LD/LLN0$GO$gcb01",
             goose_id="GOOSE_ID_1",
@@ -83,24 +89,27 @@ class TestGoCBClient(unittest.TestCase):
     """Test GoCBClient class."""
 
     def test_creation_without_library_raises(self):
-        from pyiec61850.mms.gocb import GoCBClient
         from pyiec61850.mms.exceptions import LibraryNotFoundError
-        with patch('pyiec61850.mms.gocb._HAS_IEC61850', False):
+        from pyiec61850.mms.gocb import GoCBClient
+
+        with patch("pyiec61850.mms.gocb._HAS_IEC61850", False):
             with self.assertRaises(LibraryNotFoundError):
                 GoCBClient(Mock())
 
     def test_creation_with_library(self):
         from pyiec61850.mms.gocb import GoCBClient
-        with patch('pyiec61850.mms.gocb._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.gocb.iec61850'):
+
+        with patch("pyiec61850.mms.gocb._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.gocb.iec61850"):
                 client = GoCBClient(Mock())
                 self.assertIsNotNone(client)
 
     def test_read_not_connected_raises(self):
-        from pyiec61850.mms.gocb import GoCBClient
         from pyiec61850.mms.exceptions import NotConnectedError
-        with patch('pyiec61850.mms.gocb._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.gocb.iec61850'):
+        from pyiec61850.mms.gocb import GoCBClient
+
+        with patch("pyiec61850.mms.gocb._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.gocb.iec61850"):
                 mock_mms = Mock()
                 mock_mms.is_connected = False
                 client = GoCBClient(mock_mms)
@@ -110,8 +119,9 @@ class TestGoCBClient(unittest.TestCase):
     def test_read_success(self):
         """Successful GoCB read should return populated GoCBInfo."""
         from pyiec61850.mms.gocb import GoCBClient
-        with patch('pyiec61850.mms.gocb._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.gocb.iec61850') as mock_iec:
+
+        with patch("pyiec61850.mms.gocb._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.gocb.iec61850") as mock_iec:
                 mock_mms = Mock()
                 mock_mms.is_connected = True
                 mock_mms._connection = Mock()
@@ -136,7 +146,14 @@ class TestGoCBClient(unittest.TestCase):
                 mock_mac = Mock()
                 mock_iec.ClientGooseControlBlock_getDstAddress_addr.return_value = mock_mac
                 mock_iec.MmsValue_getOctetStringSize.return_value = 6
-                mock_iec.MmsValue_getOctetStringOctet.side_effect = [0x01, 0x0C, 0xCD, 0x01, 0x00, 0x00]
+                mock_iec.MmsValue_getOctetStringOctet.side_effect = [
+                    0x01,
+                    0x0C,
+                    0xCD,
+                    0x01,
+                    0x00,
+                    0x00,
+                ]
 
                 client = GoCBClient(mock_mms)
                 info = client.read("LD/LLN0$GO$gcb01")
@@ -158,10 +175,11 @@ class TestGoCBClient(unittest.TestCase):
 
     def test_read_error_raises(self):
         """Read failure should raise ReadError."""
-        from pyiec61850.mms.gocb import GoCBClient
         from pyiec61850.mms.exceptions import ReadError
-        with patch('pyiec61850.mms.gocb._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.gocb.iec61850') as mock_iec:
+        from pyiec61850.mms.gocb import GoCBClient
+
+        with patch("pyiec61850.mms.gocb._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.gocb.iec61850") as mock_iec:
                 mock_mms = Mock()
                 mock_mms.is_connected = True
                 mock_mms._connection = Mock()
@@ -176,10 +194,11 @@ class TestGoCBClient(unittest.TestCase):
 
     def test_read_null_response_raises(self):
         """Null response from getGoCBValues should raise ReadError."""
-        from pyiec61850.mms.gocb import GoCBClient
         from pyiec61850.mms.exceptions import ReadError
-        with patch('pyiec61850.mms.gocb._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.gocb.iec61850') as mock_iec:
+        from pyiec61850.mms.gocb import GoCBClient
+
+        with patch("pyiec61850.mms.gocb._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.gocb.iec61850") as mock_iec:
                 mock_mms = Mock()
                 mock_mms.is_connected = True
                 mock_mms._connection = Mock()
@@ -194,9 +213,9 @@ class TestGoCBClient(unittest.TestCase):
     def test_read_cleanup_on_exception(self):
         """GoCB handle should be destroyed even if parsing raises."""
         from pyiec61850.mms.gocb import GoCBClient
-        from pyiec61850.mms.exceptions import ReadError
-        with patch('pyiec61850.mms.gocb._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.gocb.iec61850') as mock_iec:
+
+        with patch("pyiec61850.mms.gocb._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.gocb.iec61850") as mock_iec:
                 mock_mms = Mock()
                 mock_mms.is_connected = True
                 mock_mms._connection = Mock()
@@ -228,8 +247,9 @@ class TestGoCBClient(unittest.TestCase):
 
     def test_context_manager(self):
         from pyiec61850.mms.gocb import GoCBClient
-        with patch('pyiec61850.mms.gocb._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.gocb.iec61850'):
+
+        with patch("pyiec61850.mms.gocb._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.gocb.iec61850"):
                 mock_mms = Mock()
                 with GoCBClient(mock_mms) as client:
                     self.assertIsNotNone(client)
@@ -237,10 +257,11 @@ class TestGoCBClient(unittest.TestCase):
     def test_enumerate_discovers_gocbs(self):
         """Enumerate should walk LD/LN/GoCB and read each."""
         from pyiec61850.mms.gocb import GoCBClient
-        with patch('pyiec61850.mms.gocb._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.utils._HAS_IEC61850', True):
-                with patch('pyiec61850.mms.gocb.iec61850') as mock_iec:
-                    with patch('pyiec61850.mms.utils.iec61850', mock_iec):
+
+        with patch("pyiec61850.mms.gocb._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.utils._HAS_IEC61850", True):
+                with patch("pyiec61850.mms.gocb.iec61850") as mock_iec:
+                    with patch("pyiec61850.mms.utils.iec61850", mock_iec):
                         mock_mms = Mock()
                         mock_mms.is_connected = True
                         mock_mms._connection = Mock()
@@ -341,28 +362,36 @@ class TestFormatMac(unittest.TestCase):
 
     def test_valid_mac(self):
         from pyiec61850.mms.gocb import _format_mac
-        with patch('pyiec61850.mms.gocb._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.gocb.iec61850') as mock_iec:
+
+        with patch("pyiec61850.mms.gocb._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.gocb.iec61850") as mock_iec:
                 mock_iec.MmsValue_getOctetStringSize.return_value = 6
                 mock_iec.MmsValue_getOctetStringOctet.side_effect = [
-                    0x01, 0x0C, 0xCD, 0x01, 0x00, 0x01
+                    0x01,
+                    0x0C,
+                    0xCD,
+                    0x01,
+                    0x00,
+                    0x01,
                 ]
                 result = _format_mac(Mock())
                 self.assertEqual(result, "01:0c:cd:01:00:01")
 
     def test_none_value(self):
         from pyiec61850.mms.gocb import _format_mac
+
         result = _format_mac(None)
         self.assertEqual(result, "")
 
     def test_short_mac(self):
         from pyiec61850.mms.gocb import _format_mac
-        with patch('pyiec61850.mms.gocb._HAS_IEC61850', True):
-            with patch('pyiec61850.mms.gocb.iec61850') as mock_iec:
+
+        with patch("pyiec61850.mms.gocb._HAS_IEC61850", True):
+            with patch("pyiec61850.mms.gocb.iec61850") as mock_iec:
                 mock_iec.MmsValue_getOctetStringSize.return_value = 3
                 result = _format_mac(Mock())
                 self.assertEqual(result, "")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

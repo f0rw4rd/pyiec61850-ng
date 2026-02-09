@@ -6,105 +6,91 @@ Main TASE2Client class for TASE.2 protocol operations including
 discovery, data access, and control.
 """
 
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
-from datetime import datetime, timezone
 import logging
 import queue
 import time as _time
+from datetime import datetime, timezone
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-from .connection import MmsConnectionWrapper, is_available
-from .types import (
-    DataFlags,
-    Domain,
-    Variable,
-    PointValue,
-    ControlPoint,
-    DataSet,
-    TransferSet,
-    DSTransferSetConfig,
-    TransferReport,
-    SBOState,
-    BilateralTable,
-    ServerInfo,
-    ServerAddress,
-    InformationMessage,
-    IMTransferSetConfig,
-    InformationBuffer,
-    TagState,
-    ClientStatistics,
-)
+from .connection import MmsConnectionWrapper
 from .constants import (
-    DEFAULT_PORT,
-    DEFAULT_TIMEOUT,
-    QUALITY_GOOD,
-    QUALITY_INVALID,
-    BLOCK_1,
+    _SUPPORTED_FEATURES_BIT_MAP,
     BLOCK_2,
     BLOCK_4,
     BLOCK_5,
-    STATE_CONNECTED,
-    STATE_DISCONNECTED,
-    SBO_TIMEOUT,
-    MAX_DATA_SET_SIZE,
-    DSTS_VAR_DATA_SET_NAME,
-    DSTS_VAR_INTERVAL,
-    DSTS_VAR_INTEGRITY_CHECK,
-    DSTS_VAR_BUFFER_TIME,
-    DSTS_VAR_DS_CONDITIONS,
-    DSTS_VAR_RBE,
-    DSTS_VAR_ALL_CHANGES_REPORTED,
-    DSTS_VAR_STATUS,
-    DSTS_VAR_START_TIME,
-    DSTS_VAR_TLE,
-    DSTS_VAR_CRITICAL,
-    DSTS_VAR_BLOCK_DATA,
-    TRANSFER_REPORT_ACK,
-    TRANSFER_REPORT_NACK,
-    SUPPORTED_FEATURES_BLOCK_1,
-    SUPPORTED_FEATURES_BLOCK_2,
-    SUPPORTED_FEATURES_BLOCK_4,
-    SUPPORTED_FEATURES_BLOCK_5,
     CONFORMANCE_BLOCKS,
-    _SUPPORTED_FEATURES_BIT_MAP,
+    DEFAULT_FAILOVER_DELAY,
+    DEFAULT_FAILOVER_RETRY_COUNT,
+    DEFAULT_MAX_CONSECUTIVE_ERRORS,
+    DEFAULT_PORT,
+    DEFAULT_TIMEOUT,
+    DSTS_VAR_ALL_CHANGES_REPORTED,
+    DSTS_VAR_BLOCK_DATA,
+    DSTS_VAR_BUFFER_TIME,
+    DSTS_VAR_CRITICAL,
+    DSTS_VAR_DATA_SET_NAME,
+    DSTS_VAR_DS_CONDITIONS,
+    DSTS_VAR_INTEGRITY_CHECK,
+    DSTS_VAR_INTERVAL,
+    DSTS_VAR_RBE,
+    DSTS_VAR_START_TIME,
+    DSTS_VAR_STATUS,
+    DSTS_VAR_TLE,
     IMTS_VAR_STATUS,
-    INFO_BUFF_VAR_NAME,
-    INFO_BUFF_VAR_SIZE,
-    INFO_BUFF_VAR_NEXT_ENTRY,
     INFO_BUFF_VAR_ENTRIES,
+    INFO_BUFF_VAR_SIZE,
+    INFO_MSG_VAR_CONTENT,
     INFO_MSG_VAR_INFO_REF,
     INFO_MSG_VAR_LOCAL_REF,
     INFO_MSG_VAR_MSG_ID,
-    INFO_MSG_VAR_CONTENT,
+    MAX_DATA_SET_SIZE,
+    MAX_FILE_DOWNLOAD_SIZE,
     MAX_INFO_MESSAGE_SIZE,
-    NEXT_DS_TRANSFER_SET,
     MAX_TRANSFER_SET_CHAIN,
-    TAG_VAR_SUFFIX,
+    NEXT_DS_TRANSFER_SET,
+    QUALITY_GOOD,
+    QUALITY_INVALID,
+    SBO_TIMEOUT,
+    SERVER_PRIORITY_PRIMARY,
+    STATE_CONNECTED,
+    STATE_DISCONNECTED,
     TAG_REASON_VAR_SUFFIX,
-    TASE2_EDITION_AUTO,
+    TAG_VAR_SUFFIX,
     TASE2_EDITION_1996,
     TASE2_EDITION_2000,
-    MAX_FILE_DOWNLOAD_SIZE,
-    DEFAULT_FAILOVER_RETRY_COUNT,
-    DEFAULT_FAILOVER_DELAY,
-    SERVER_PRIORITY_PRIMARY,
-    SERVER_PRIORITY_BACKUP,
-    DEFAULT_MAX_CONSECUTIVE_ERRORS,
+    TASE2_EDITION_AUTO,
+    TRANSFER_REPORT_ACK,
     TRANSFER_SET_METADATA_MEMBERS,
     TRANSFER_SET_METADATA_OFFSET,
 )
 from .exceptions import (
-    TASE2Error,
-    NotConnectedError,
     ConnectionFailedError,
     DomainNotFoundError,
-    VariableNotFoundError,
-    ReadError,
-    WriteError,
-    ControlError,
-    SelectError,
-    OperateError,
-    InformationMessageError,
     IMTransferSetError,
+    InformationMessageError,
+    NotConnectedError,
+    OperateError,
+    ReadError,
+    SelectError,
+    TASE2Error,
+    WriteError,
+)
+from .types import (
+    ClientStatistics,
+    DataFlags,
+    DataSet,
+    Domain,
+    DSTransferSetConfig,
+    IMTransferSetConfig,
+    InformationBuffer,
+    InformationMessage,
+    PointValue,
+    SBOState,
+    ServerAddress,
+    ServerInfo,
+    TagState,
+    TransferReport,
+    TransferSet,
 )
 
 logger = logging.getLogger(__name__)
@@ -120,37 +106,42 @@ def _init_mms_types():
     # Correct MMS type values per libiec61850 src/mms/inc/mms_common.h
     # These fallbacks match the actual libiec61850 MmsType enum values
     FALLBACK_MMS_TYPES = {
-        'ARRAY': 0,
-        'STRUCTURE': 1,
-        'BOOLEAN': 2,
-        'BIT_STRING': 3,
-        'INTEGER': 4,
-        'UNSIGNED': 5,
-        'FLOAT': 6,
-        'OCTET_STRING': 7,
-        'VISIBLE_STRING': 8,
-        'GENERALIZED_TIME': 9,
-        'BINARY_TIME': 10,
-        'BCD': 11,
-        'OBJ_ID': 12,
-        'STRING': 13,
-        'UTC_TIME': 14,
-        'DATA_ACCESS_ERROR': 15,
+        "ARRAY": 0,
+        "STRUCTURE": 1,
+        "BOOLEAN": 2,
+        "BIT_STRING": 3,
+        "INTEGER": 4,
+        "UNSIGNED": 5,
+        "FLOAT": 6,
+        "OCTET_STRING": 7,
+        "VISIBLE_STRING": 8,
+        "GENERALIZED_TIME": 9,
+        "BINARY_TIME": 10,
+        "BCD": 11,
+        "OBJ_ID": 12,
+        "STRING": 13,
+        "UTC_TIME": 14,
+        "DATA_ACCESS_ERROR": 15,
     }
     try:
         import pyiec61850.pyiec61850 as iec61850
+
         _MMS_TYPES = {
-            'ARRAY': getattr(iec61850, 'MMS_ARRAY', FALLBACK_MMS_TYPES['ARRAY']),
-            'STRUCTURE': getattr(iec61850, 'MMS_STRUCTURE', FALLBACK_MMS_TYPES['STRUCTURE']),
-            'BOOLEAN': getattr(iec61850, 'MMS_BOOLEAN', FALLBACK_MMS_TYPES['BOOLEAN']),
-            'BIT_STRING': getattr(iec61850, 'MMS_BIT_STRING', FALLBACK_MMS_TYPES['BIT_STRING']),
-            'INTEGER': getattr(iec61850, 'MMS_INTEGER', FALLBACK_MMS_TYPES['INTEGER']),
-            'UNSIGNED': getattr(iec61850, 'MMS_UNSIGNED', FALLBACK_MMS_TYPES['UNSIGNED']),
-            'FLOAT': getattr(iec61850, 'MMS_FLOAT', FALLBACK_MMS_TYPES['FLOAT']),
-            'OCTET_STRING': getattr(iec61850, 'MMS_OCTET_STRING', FALLBACK_MMS_TYPES['OCTET_STRING']),
-            'VISIBLE_STRING': getattr(iec61850, 'MMS_VISIBLE_STRING', FALLBACK_MMS_TYPES['VISIBLE_STRING']),
-            'STRING': getattr(iec61850, 'MMS_STRING', FALLBACK_MMS_TYPES['STRING']),
-            'UTC_TIME': getattr(iec61850, 'MMS_UTC_TIME', FALLBACK_MMS_TYPES['UTC_TIME']),
+            "ARRAY": getattr(iec61850, "MMS_ARRAY", FALLBACK_MMS_TYPES["ARRAY"]),
+            "STRUCTURE": getattr(iec61850, "MMS_STRUCTURE", FALLBACK_MMS_TYPES["STRUCTURE"]),
+            "BOOLEAN": getattr(iec61850, "MMS_BOOLEAN", FALLBACK_MMS_TYPES["BOOLEAN"]),
+            "BIT_STRING": getattr(iec61850, "MMS_BIT_STRING", FALLBACK_MMS_TYPES["BIT_STRING"]),
+            "INTEGER": getattr(iec61850, "MMS_INTEGER", FALLBACK_MMS_TYPES["INTEGER"]),
+            "UNSIGNED": getattr(iec61850, "MMS_UNSIGNED", FALLBACK_MMS_TYPES["UNSIGNED"]),
+            "FLOAT": getattr(iec61850, "MMS_FLOAT", FALLBACK_MMS_TYPES["FLOAT"]),
+            "OCTET_STRING": getattr(
+                iec61850, "MMS_OCTET_STRING", FALLBACK_MMS_TYPES["OCTET_STRING"]
+            ),
+            "VISIBLE_STRING": getattr(
+                iec61850, "MMS_VISIBLE_STRING", FALLBACK_MMS_TYPES["VISIBLE_STRING"]
+            ),
+            "STRING": getattr(iec61850, "MMS_STRING", FALLBACK_MMS_TYPES["STRING"]),
+            "UTC_TIME": getattr(iec61850, "MMS_UTC_TIME", FALLBACK_MMS_TYPES["UTC_TIME"]),
         }
         logger.debug(f"MMS type constants loaded: {_MMS_TYPES}")
     except ImportError:
@@ -178,7 +169,7 @@ def _validate_point_name(name: str) -> bool:
         return False
     if name[0].isdigit():
         return False
-    return all(c.isalnum() or c in ('_', '$') for c in name)
+    return all(c.isalnum() or c in ("_", "$") for c in name)
 
 
 class TASE2Client:
@@ -371,9 +362,7 @@ class TASE2Client:
 
         # Handle server list
         if isinstance(host, list):
-            self._server_list = [
-                ServerAddress(h, p) for h, p in host
-            ]
+            self._server_list = [ServerAddress(h, p) for h, p in host]
             self._failover_enabled = failover
             self._failover_retry_count = retry_count
             self._failover_delay = retry_delay
@@ -451,23 +440,14 @@ class TASE2Client:
                     result = self._connect_single(server.host, server.port, timeout)
                     if result:
                         self._current_server_index = idx
-                        logger.info(
-                            f"Connected to {server.host}:{server.port} "
-                            f"({server.priority})"
-                        )
+                        logger.info(f"Connected to {server.host}:{server.port} ({server.priority})")
                         return True
                 except ConnectionFailedError as e:
                     last_error = e
-                    logger.warning(
-                        f"Connection to {server.host}:{server.port} failed: {e}"
-                    )
+                    logger.warning(f"Connection to {server.host}:{server.port} failed: {e}")
                 except Exception as e:
-                    last_error = ConnectionFailedError(
-                        server.host, server.port, str(e)
-                    )
-                    logger.warning(
-                        f"Connection to {server.host}:{server.port} failed: {e}"
-                    )
+                    last_error = ConnectionFailedError(server.host, server.port, str(e))
+                    logger.warning(f"Connection to {server.host}:{server.port} failed: {e}")
 
                 # Delay between retries (not after last attempt)
                 if attempt < self._failover_retry_count:
@@ -557,17 +537,15 @@ class TASE2Client:
         self._consecutive_errors = 0
 
         # Attempt failover if enabled and not already in progress
-        if (self._failover_enabled and self._server_list
-                and not self._failover_in_progress):
+        if self._failover_enabled and self._server_list and not self._failover_in_progress:
             self._failover_in_progress = True
             try:
                 # Move to next server
-                self._current_server_index = (
-                    (self._current_server_index + 1) % len(self._server_list)
+                self._current_server_index = (self._current_server_index + 1) % len(
+                    self._server_list
                 )
                 logger.info(
-                    f"Attempting failover to next server "
-                    f"(index {self._current_server_index})"
+                    f"Attempting failover to next server (index {self._current_server_index})"
                 )
                 # Recreate connection wrapper (old one is dead)
                 self._connection = MmsConnectionWrapper(
@@ -691,7 +669,9 @@ class TASE2Client:
         for block_num in blocks:
             name = CONFORMANCE_BLOCKS.get(block_num, (str(block_num),))[0]
             summary_parts.append(f"Block {block_num} ({name})")
-        self._server_capabilities["supported_blocks_summary"] = ", ".join(summary_parts) if summary_parts else "none"
+        self._server_capabilities["supported_blocks_summary"] = (
+            ", ".join(summary_parts) if summary_parts else "none"
+        )
 
     def get_server_blocks(self) -> Dict[int, Dict[str, Any]]:
         """Return conformance block support status for all 9 TASE.2 blocks.
@@ -726,8 +706,7 @@ class TASE2Client:
         if blocks is not None and block not in blocks:
             block_name = CONFORMANCE_BLOCKS.get(block, (str(block),))[0]
             logger.warning(
-                f"Server may not support Block {block} ({block_name}) "
-                f"required for {operation}"
+                f"Server may not support Block {block} ({block_name}) required for {operation}"
             )
 
     # =========================================================================
@@ -918,12 +897,14 @@ class TASE2Client:
                 results.append(value)
             except Exception as e:
                 # Return invalid value on error
-                results.append(PointValue(
-                    value=None,
-                    quality=QUALITY_INVALID,
-                    name=name,
-                    domain=domain,
-                ))
+                results.append(
+                    PointValue(
+                        value=None,
+                        quality=QUALITY_INVALID,
+                        name=name,
+                        domain=domain,
+                    )
+                )
                 logger.warning(f"Failed to read {domain}/{name}: {e}")
 
         return results
@@ -1012,7 +993,7 @@ class TASE2Client:
             mms_type = iec61850.MmsValue_getType(raw_value)
 
             # Check for structure using cached type constant
-            if mms_type == _MMS_TYPES['STRUCTURE']:
+            if mms_type == _MMS_TYPES["STRUCTURE"]:
                 # TASE.2 structured types vary by point type:
                 # 1 element: value only (no quality)
                 # 2 elements: value + quality
@@ -1047,23 +1028,23 @@ class TASE2Client:
             mms_type = iec61850.MmsValue_getType(mms_value)
 
             # Use cached MMS type constants for comparisons
-            if mms_type == _MMS_TYPES['FLOAT']:
+            if mms_type == _MMS_TYPES["FLOAT"]:
                 return iec61850.MmsValue_toFloat(mms_value)
 
-            if mms_type == _MMS_TYPES['INTEGER']:
+            if mms_type == _MMS_TYPES["INTEGER"]:
                 return iec61850.MmsValue_toInt32(mms_value)
 
-            if mms_type == _MMS_TYPES['UNSIGNED']:
+            if mms_type == _MMS_TYPES["UNSIGNED"]:
                 return iec61850.MmsValue_toUint32(mms_value)
 
-            if mms_type == _MMS_TYPES['BOOLEAN']:
+            if mms_type == _MMS_TYPES["BOOLEAN"]:
                 return iec61850.MmsValue_getBoolean(mms_value)
 
-            if mms_type in (_MMS_TYPES['VISIBLE_STRING'], _MMS_TYPES['STRING']):
+            if mms_type in (_MMS_TYPES["VISIBLE_STRING"], _MMS_TYPES["STRING"]):
                 return iec61850.MmsValue_toString(mms_value)
 
             # BIT_STRING (for state values)
-            if mms_type == _MMS_TYPES['BIT_STRING']:
+            if mms_type == _MMS_TYPES["BIT_STRING"]:
                 return iec61850.MmsValue_getBitStringAsInteger(mms_value)
 
             # Try generic float extraction
@@ -1096,7 +1077,7 @@ class TASE2Client:
             mms_type = iec61850.MmsValue_getType(raw_value)
 
             # Only structures have quality fields
-            if mms_type == _MMS_TYPES['STRUCTURE']:
+            if mms_type == _MMS_TYPES["STRUCTURE"]:
                 try:
                     element_count = iec61850.MmsValue_getArraySize(raw_value)
                     # 1-element structures have no quality
@@ -1106,9 +1087,11 @@ class TASE2Client:
                     if flags_element:
                         # Extract as integer
                         flags_type = iec61850.MmsValue_getType(flags_element)
-                        if flags_type in (_MMS_TYPES['INTEGER'],
-                                         _MMS_TYPES['UNSIGNED'],
-                                         _MMS_TYPES['BIT_STRING']):
+                        if flags_type in (
+                            _MMS_TYPES["INTEGER"],
+                            _MMS_TYPES["UNSIGNED"],
+                            _MMS_TYPES["BIT_STRING"],
+                        ):
                             flags_raw = iec61850.MmsValue_toInt32(flags_element)
                             return DataFlags.from_raw(flags_raw)
                 except Exception as e:
@@ -1134,7 +1117,7 @@ class TASE2Client:
             mms_type = iec61850.MmsValue_getType(raw_value)
 
             # Only structures have timestamp fields
-            if mms_type == _MMS_TYPES['STRUCTURE']:
+            if mms_type == _MMS_TYPES["STRUCTURE"]:
                 try:
                     element_count = iec61850.MmsValue_getArraySize(raw_value)
                     # Timestamp is typically 3rd element
@@ -1142,7 +1125,7 @@ class TASE2Client:
                         ts_element = iec61850.MmsValue_getElement(raw_value, 2)
                         if ts_element:
                             ts_type = iec61850.MmsValue_getType(ts_element)
-                            if ts_type == _MMS_TYPES['UTC_TIME']:
+                            if ts_type == _MMS_TYPES["UTC_TIME"]:
                                 epoch_ms = iec61850.MmsValue_getUtcTimeInMs(ts_element)
                                 return self._convert_timestamp(epoch_ms)
                 except Exception as e:
@@ -1196,7 +1179,7 @@ class TASE2Client:
             mms_type = iec61850.MmsValue_getType(raw_value)
 
             # Only structures have COV counter fields
-            if mms_type == _MMS_TYPES['STRUCTURE']:
+            if mms_type == _MMS_TYPES["STRUCTURE"]:
                 try:
                     element_count = iec61850.MmsValue_getArraySize(raw_value)
                     # COV counter is typically 4th element in extended types
@@ -1224,7 +1207,8 @@ class TASE2Client:
 
         try:
             import pyiec61850.pyiec61850 as iec61850
-            if hasattr(iec61850, 'MmsValue_delete'):
+
+            if hasattr(iec61850, "MmsValue_delete"):
                 iec61850.MmsValue_delete(mms_value)
         except Exception as e:
             logger.warning(f"Failed to cleanup MmsValue: {e}")
@@ -1435,7 +1419,9 @@ class TASE2Client:
                                 transfer_sets.append(ts)
                             break
             except Exception as e:
-                logger.warning(f"Failed to enumerate variables for transfer set discovery on {domain}: {e}")
+                logger.warning(
+                    f"Failed to enumerate variables for transfer set discovery on {domain}: {e}"
+                )
 
         except NotConnectedError:
             raise
@@ -1507,6 +1493,7 @@ class TASE2Client:
                 if pv.value is not None:
                     # DSConditions is a bitmask
                     from .types import TransferSetConditions
+
                     ts.conditions = TransferSetConditions.from_raw(int(pv.value))
                     break
             except Exception as e:
@@ -1583,8 +1570,7 @@ class TASE2Client:
 
         if writes_succeeded == 0 and config_writes:
             raise TASE2Error(
-                f"Failed to configure transfer set {domain}/{name}: "
-                "no attributes could be written"
+                f"Failed to configure transfer set {domain}/{name}: no attributes could be written"
             )
 
         logger.info(
@@ -1633,10 +1619,8 @@ class TASE2Client:
             try:
                 import pyiec61850.pyiec61850 as iec61850
 
-                if hasattr(iec61850, 'MmsConnection_sendUnconfirmedPDU'):
-                    mms_conn = iec61850.IedConnection_getMmsConnection(
-                        self._connection._connection
-                    )
+                if hasattr(iec61850, "MmsConnection_sendUnconfirmedPDU"):
+                    mms_conn = iec61850.IedConnection_getMmsConnection(self._connection._connection)
                     if mms_conn:
                         if timestamp is None:
                             timestamp = datetime.now(tz=timezone.utc)
@@ -1645,15 +1629,14 @@ class TASE2Client:
                         ts_ms = int(timestamp.timestamp() * 1000)
                         ts_value = None
                         try:
-                            if hasattr(iec61850, 'MmsValue_newUtcTimeByMsTime'):
+                            if hasattr(iec61850, "MmsValue_newUtcTimeByMsTime"):
                                 ts_value = iec61850.MmsValue_newUtcTimeByMsTime(ts_ms)
-                            elif hasattr(iec61850, 'MmsValue_newIntegerFromInt32'):
+                            elif hasattr(iec61850, "MmsValue_newIntegerFromInt32"):
                                 ts_value = iec61850.MmsValue_newIntegerFromInt32(ts_ms)
 
                             if ts_value:
                                 iec61850.MmsConnection_sendUnconfirmedPDU(
-                                    mms_conn, None, domain,
-                                    transfer_set_name, ts_value
+                                    mms_conn, None, domain, transfer_set_name, ts_value
                                 )
                                 logger.debug(
                                     f"Sent Transfer Report ACK via "
@@ -1661,7 +1644,7 @@ class TASE2Client:
                                 )
                                 return True
                         finally:
-                            if ts_value and hasattr(iec61850, 'MmsValue_delete'):
+                            if ts_value and hasattr(iec61850, "MmsValue_delete"):
                                 try:
                                     iec61850.MmsValue_delete(ts_value)
                                 except Exception:
@@ -1669,10 +1652,7 @@ class TASE2Client:
             except ImportError:
                 pass
             except Exception as e:
-                logger.debug(
-                    f"InformationReport ACK failed, falling back to "
-                    f"write-variable: {e}"
-                )
+                logger.debug(f"InformationReport ACK failed, falling back to write-variable: {e}")
 
         # Method 2: Fallback to write-variable approach
         try:
@@ -1803,25 +1783,17 @@ class TASE2Client:
                 last_error = e
 
         if not enabled:
-            raise WriteError(
-                f"{domain}/{name}",
-                f"Failed to enable transfer set: {last_error}"
-            )
+            raise WriteError(f"{domain}/{name}", f"Failed to enable transfer set: {last_error}")
 
         # Perform initial dataset read if requested
         if initial_read:
             ds_name = data_set_name or name
             try:
                 initial_values = self.get_data_set_values(domain, ds_name)
-                logger.info(
-                    f"Initial read of {domain}/{ds_name}: "
-                    f"{len(initial_values)} values"
-                )
+                logger.info(f"Initial read of {domain}/{ds_name}: {len(initial_values)} values")
                 return (True, initial_values)
             except Exception as e:
-                logger.warning(
-                    f"Initial read of {domain}/{ds_name} failed: {e}"
-                )
+                logger.warning(f"Initial read of {domain}/{ds_name} failed: {e}")
                 return (True, [])
 
         return True
@@ -1868,10 +1840,7 @@ class TASE2Client:
         except Exception as e:
             last_error = e
 
-        raise WriteError(
-            f"{domain}/{name}",
-            f"Failed to disable transfer set: {last_error}"
-        )
+        raise WriteError(f"{domain}/{name}", f"Failed to disable transfer set: {last_error}")
 
     # =========================================================================
     # Control Operations (Block 5)
@@ -1901,6 +1870,7 @@ class TASE2Client:
         self._check_block_support(BLOCK_5, "select_device")
 
         import time
+
         device_key = f"{domain}/{device}"
 
         # SBO select variable patterns
@@ -1978,6 +1948,7 @@ class TASE2Client:
         self._ensure_connected()
 
         import time
+
         device_key = f"{domain}/{device}"
 
         # Check if SBO select has expired
@@ -1990,7 +1961,7 @@ class TASE2Client:
                 self._sbo_states.pop(device_key, None)
                 raise OperateError(
                     f"{domain}/{device}",
-                    f"SBO select expired after {SBO_TIMEOUT}s (elapsed: {elapsed:.1f}s)"
+                    f"SBO select expired after {SBO_TIMEOUT}s (elapsed: {elapsed:.1f}s)",
                 )
 
         try:
@@ -2118,6 +2089,7 @@ class TASE2Client:
                 continue
 
         from .exceptions import TagError
+
         raise TagError(f"{domain}/{device}", f"Failed to set tag: {last_error}")
 
     # =========================================================================
@@ -2159,9 +2131,7 @@ class TASE2Client:
                 try:
                     self._connection.write_variable(dom_name, var_name, True)
                     self._im_transfer_set_enabled = True
-                    logger.info(
-                        f"Enabled IM Transfer Set on {dom_name}"
-                    )
+                    logger.info(f"Enabled IM Transfer Set on {dom_name}")
                     return True
                 except Exception:
                     continue
@@ -2198,18 +2168,14 @@ class TASE2Client:
                 try:
                     self._connection.write_variable(dom_name, var_name, False)
                     self._im_transfer_set_enabled = False
-                    logger.info(
-                        f"Disabled IM Transfer Set on {dom_name}"
-                    )
+                    logger.info(f"Disabled IM Transfer Set on {dom_name}")
                     return True
                 except Exception:
                     continue
 
         raise IMTransferSetError("Failed to disable IM Transfer Set")
 
-    def get_im_transfer_set_status(
-        self, domain: Optional[str] = None
-    ) -> IMTransferSetConfig:
+    def get_im_transfer_set_status(self, domain: Optional[str] = None) -> IMTransferSetConfig:
         """
         Read the IM Transfer Set configuration/status.
 
@@ -2307,9 +2273,7 @@ class TASE2Client:
             logger.warning(f"Failed to write message content: {e}")
 
         if writes_succeeded == 0:
-            raise InformationMessageError(
-                f"Failed to send information message to {domain}"
-            )
+            raise InformationMessageError(f"Failed to send information message to {domain}")
 
         logger.info(
             f"Sent information message to {domain} "
@@ -2359,18 +2323,14 @@ class TASE2Client:
                     continue
 
             if entry_count > 0:
-                logger.debug(
-                    f"Information buffer on {domain} has {entry_count} entries"
-                )
+                logger.debug(f"Information buffer on {domain} has {entry_count} entries")
 
         except Exception as e:
             logger.warning(f"Failed to read information buffer metadata: {e}")
 
         return messages
 
-    def get_info_message_by_ref(
-        self, domain: str, info_ref: int
-    ) -> Optional[InformationMessage]:
+    def get_info_message_by_ref(self, domain: str, info_ref: int) -> Optional[InformationMessage]:
         """
         Read a specific information message by its info_ref.
 
@@ -2522,9 +2482,7 @@ class TASE2Client:
             InformationMessage if available, None if timeout/empty
         """
         try:
-            return self._im_message_queue.get(
-                block=timeout is not None, timeout=timeout
-            )
+            return self._im_message_queue.get(block=timeout is not None, timeout=timeout)
         except queue.Empty:
             return None
 
@@ -2766,12 +2724,14 @@ class TASE2Client:
                 except Exception as e:
                     logger.warning(f"Failed to read {domain.name}/{var_name}: {e}")
                     # Add placeholder for unreadable points
-                    data_points.append(PointValue(
-                        value=None,
-                        quality=QUALITY_INVALID,
-                        name=var_name,
-                        domain=domain.name,
-                    ))
+                    data_points.append(
+                        PointValue(
+                            value=None,
+                            quality=QUALITY_INVALID,
+                            name=var_name,
+                            domain=domain.name,
+                        )
+                    )
                     points_read += 1
 
         return data_points
@@ -2867,8 +2827,14 @@ class TASE2Client:
             # Enumerate data points
             all_points = []
             control_keywords = [
-                "control", "command", "setpoint", "breaker",
-                "switch", "valve", "output", "operate"
+                "control",
+                "command",
+                "setpoint",
+                "breaker",
+                "switch",
+                "valve",
+                "output",
+                "operate",
             ]
 
             for domain in domains:
@@ -2879,7 +2845,9 @@ class TASE2Client:
                             analysis["readable_points"] += 1
                             all_points.append((domain.name, var_name, pv))
                     except Exception as e:
-                        logger.warning(f"Security analysis: failed to read {domain.name}/{var_name}: {e}")
+                        logger.warning(
+                            f"Security analysis: failed to read {domain.name}/{var_name}: {e}"
+                        )
 
                     # Check for control points
                     var_lower = var_name.lower()
@@ -2891,7 +2859,9 @@ class TASE2Client:
                     ts = self.get_transfer_sets(domain.name)
                     analysis["transfer_sets"] += len(ts)
                 except Exception as e:
-                    logger.warning(f"Security analysis: failed to get transfer sets for {domain.name}: {e}")
+                    logger.warning(
+                        f"Security analysis: failed to get transfer sets for {domain.name}: {e}"
+                    )
 
             # Determine conformance blocks
             analysis["conformance_blocks"].append("Block 1 (Basic)")
@@ -2904,9 +2874,11 @@ class TASE2Client:
             for domain in domains:
                 for var_name in domain.variables:
                     var_lower = var_name.lower()
-                    if ("im_transfer" in var_lower or
-                            "information_buffer" in var_lower or
-                            "infobuffer" in var_lower):
+                    if (
+                        "im_transfer" in var_lower
+                        or "information_buffer" in var_lower
+                        or "infobuffer" in var_lower
+                    ):
                         has_block4 = True
                         break
                 if has_block4:
@@ -2941,20 +2913,12 @@ class TASE2Client:
                 )
 
             # Recommendations
-            analysis["recommendations"].append(
-                "Implement network segmentation and firewall rules"
-            )
-            analysis["recommendations"].append(
-                "Use TLS wrapper or VPN for transport security"
-            )
-            analysis["recommendations"].append(
-                "Configure bilateral tables to restrict access"
-            )
+            analysis["recommendations"].append("Implement network segmentation and firewall rules")
+            analysis["recommendations"].append("Use TLS wrapper or VPN for transport security")
+            analysis["recommendations"].append("Configure bilateral tables to restrict access")
 
             if analysis["control_points"] > 0:
-                analysis["recommendations"].append(
-                    "Review control point access permissions"
-                )
+                analysis["recommendations"].append("Review control point access permissions")
 
         except Exception as e:
             analysis["error"] = str(e)
@@ -2991,11 +2955,11 @@ class TASE2Client:
 
         # Read tag value - try standard patterns
         tag_names = [
-            f"{device}{TAG_VAR_SUFFIX}",    # Standard: Device_TAG
-            f"{device}$Tag",                 # MMS separator
-            f"{device}_Tag",                 # Common variant
-            f"{device}$TagValue",            # Alternate naming
-            f"Tag_{device}",                 # Prefix variant
+            f"{device}{TAG_VAR_SUFFIX}",  # Standard: Device_TAG
+            f"{device}$Tag",  # MMS separator
+            f"{device}_Tag",  # Common variant
+            f"{device}$TagValue",  # Alternate naming
+            f"Tag_{device}",  # Prefix variant
         ]
 
         tag_read = False
@@ -3010,10 +2974,7 @@ class TASE2Client:
                 continue
 
         if not tag_read:
-            raise ReadError(
-                f"{domain}/{device}{TAG_VAR_SUFFIX}",
-                "Could not read tag variable"
-            )
+            raise ReadError(f"{domain}/{device}{TAG_VAR_SUFFIX}", "Could not read tag variable")
 
         # Try to read reason string (optional)
         reason_names = [
@@ -3074,12 +3035,12 @@ class TASE2Client:
 
         if len(names) > MAX_DATA_SET_SIZE:
             raise TASE2Error(
-                f"Batch read has {len(names)} points, exceeding "
-                f"TASE.2 limit of {MAX_DATA_SET_SIZE}"
+                f"Batch read has {len(names)} points, exceeding TASE.2 limit of {MAX_DATA_SET_SIZE}"
             )
 
         # Generate unique temporary data set name
         import time
+
         temp_ds_name = f"_pyiec_batch_{int(time.time() * 1000) % 100000}"
 
         try:
@@ -3089,24 +3050,22 @@ class TASE2Client:
 
             try:
                 # Read all values in one MMS call
-                raw_values = self._connection.read_data_set_values(
-                    domain, temp_ds_name
-                )
+                raw_values = self._connection.read_data_set_values(domain, temp_ds_name)
 
                 results = []
                 for i, name in enumerate(names):
                     if i < len(raw_values) and raw_values[i] is not None:
-                        pv = self._parse_point_value(
-                            raw_values[i], domain, name
-                        )
+                        pv = self._parse_point_value(raw_values[i], domain, name)
                         results.append(pv)
                     else:
-                        results.append(PointValue(
-                            value=None,
-                            quality=QUALITY_INVALID,
-                            name=name,
-                            domain=domain,
-                        ))
+                        results.append(
+                            PointValue(
+                                value=None,
+                                quality=QUALITY_INVALID,
+                                name=name,
+                                domain=domain,
+                            )
+                        )
 
                 self._statistics.total_reads += len(names)
                 return results
@@ -3120,8 +3079,7 @@ class TASE2Client:
 
         except Exception as e:
             logger.warning(
-                f"Batch read via data set failed ({e}), "
-                f"falling back to sequential reads"
+                f"Batch read via data set failed ({e}), falling back to sequential reads"
             )
             # Fall back to sequential reads
             return self.read_points([(domain, name) for name in names])
@@ -3201,18 +3159,18 @@ class TASE2Client:
                 # Read Next_DSTransfer_Set for this transfer set to get next
                 next_name = None
                 try:
-                    next_pv = self.read_point(
-                        domain, f"{current_name}_{NEXT_DS_TRANSFER_SET}"
-                    )
+                    next_pv = self.read_point(domain, f"{current_name}_{NEXT_DS_TRANSFER_SET}")
                     if next_pv.value is not None and str(next_pv.value).strip():
                         next_name = str(next_pv.value).strip()
                 except Exception:
                     # Try without prefix
                     try:
                         next_pv = self.read_point(domain, NEXT_DS_TRANSFER_SET)
-                        if (next_pv.value is not None and
-                                str(next_pv.value).strip() and
-                                str(next_pv.value).strip() != current_name):
+                        if (
+                            next_pv.value is not None
+                            and str(next_pv.value).strip()
+                            and str(next_pv.value).strip() != current_name
+                        ):
                             next_name = str(next_pv.value).strip()
                     except Exception:
                         pass
@@ -3260,17 +3218,12 @@ class TASE2Client:
         self._check_block_support(BLOCK_4, "download_file")
 
         try:
-            data = self._connection.download_file(
-                filename, max_size=MAX_FILE_DOWNLOAD_SIZE
-            )
+            data = self._connection.download_file(filename, max_size=MAX_FILE_DOWNLOAD_SIZE)
 
             if local_path:
-                with open(local_path, 'wb') as f:
+                with open(local_path, "wb") as f:
                     f.write(data)
-                logger.info(
-                    f"Downloaded file '{filename}' ({len(data)} bytes) "
-                    f"to {local_path}"
-                )
+                logger.info(f"Downloaded file '{filename}' ({len(data)} bytes) to {local_path}")
             else:
                 logger.info(f"Downloaded file '{filename}' ({len(data)} bytes)")
 
@@ -3334,10 +3287,7 @@ class TASE2Client:
             revision: Revision/version string
         """
         self._local_identity = (vendor, model, revision)
-        logger.debug(
-            f"Local identity set: vendor={vendor}, "
-            f"model={model}, revision={revision}"
-        )
+        logger.debug(f"Local identity set: vendor={vendor}, model={model}, revision={revision}")
 
     def get_local_identity(self) -> Optional[Tuple[str, str, str]]:
         """
@@ -3380,8 +3330,7 @@ class TASE2Client:
         valid = {TASE2_EDITION_AUTO, TASE2_EDITION_1996, TASE2_EDITION_2000}
         if edition not in valid:
             raise ValueError(
-                f"Invalid TASE.2 edition '{edition}'. "
-                f"Must be one of: {', '.join(sorted(valid))}"
+                f"Invalid TASE.2 edition '{edition}'. Must be one of: {', '.join(sorted(valid))}"
             )
         self._tase2_edition = edition
         logger.debug(f"TASE.2 edition set to: {edition}")

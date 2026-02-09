@@ -18,25 +18,24 @@ Example:
         time.sleep(10)
 """
 
-from typing import Any, Callable, List, Optional
-from datetime import datetime, timezone
 import logging
+from datetime import datetime, timezone
+from typing import Any, Callable, Optional
 
 try:
     import pyiec61850.pyiec61850 as iec61850
+
     _HAS_IEC61850 = True
 except ImportError:
     _HAS_IEC61850 = False
     iec61850 = None
 
 from .exceptions import (
-    LibraryNotFoundError,
-    InterfaceError,
-    SubscriptionError,
-    ConfigurationError,
-    NotStartedError,
     AlreadyStartedError,
-    GooseError,
+    ConfigurationError,
+    InterfaceError,
+    LibraryNotFoundError,
+    SubscriptionError,
 )
 from .types import GooseMessage
 
@@ -181,9 +180,7 @@ class GooseSubscriber:
 
         try:
             # Create GOOSE subscriber
-            self._subscriber = iec61850.GooseSubscriber_create(
-                self._go_cb_ref, None
-            )
+            self._subscriber = iec61850.GooseSubscriber_create(self._go_cb_ref, None)
             if not self._subscriber:
                 raise SubscriptionError("Failed to create GooseSubscriber")
 
@@ -195,7 +192,7 @@ class GooseSubscriber:
                 iec61850.GooseSubscriber_setDstMac(self._subscriber, self._dst_mac)
 
             # Set up the SWIG director handler for callbacks
-            if self._listener and hasattr(iec61850, 'GooseHandler'):
+            if self._listener and hasattr(iec61850, "GooseHandler"):
                 self._goose_handler = _PyGooseHandler(self._listener, self._go_cb_ref)
                 self._goose_subscriber_py = iec61850.GooseSubscriberForPython()
                 self._goose_subscriber_py.setLibiec61850GooseSubscriber(self._subscriber)
@@ -216,14 +213,11 @@ class GooseSubscriber:
             if not iec61850.GooseReceiver_isRunning(self._receiver):
                 raise InterfaceError(
                     self._interface,
-                    "GooseReceiver failed to start (check permissions and interface)"
+                    "GooseReceiver failed to start (check permissions and interface)",
                 )
 
             self._running = True
-            logger.info(
-                f"GOOSE subscriber started on {self._interface} "
-                f"for {self._go_cb_ref}"
-            )
+            logger.info(f"GOOSE subscriber started on {self._interface} for {self._go_cb_ref}")
 
         except (AlreadyStartedError, SubscriptionError, InterfaceError):
             raise
@@ -267,7 +261,7 @@ class GooseSubscriber:
         self._subscriber = None
         self._running = False
 
-    def __enter__(self) -> 'GooseSubscriber':
+    def __enter__(self) -> "GooseSubscriber":
         """Context manager entry."""
         return self
 
@@ -297,7 +291,7 @@ class _PyGooseHandler:
         self._callback = callback
         self._go_cb_ref = go_cb_ref
 
-        if _HAS_IEC61850 and hasattr(iec61850, 'GooseHandler'):
+        if _HAS_IEC61850 and hasattr(iec61850, "GooseHandler"):
             try:
                 iec61850.GooseHandler.__init__(self)
             except Exception:
@@ -330,15 +324,11 @@ class _PyGooseHandler:
             except Exception:
                 pass
             try:
-                msg.needs_commissioning = iec61850.GooseSubscriber_needsCommissioning(
-                    subscriber
-                )
+                msg.needs_commissioning = iec61850.GooseSubscriber_needsCommissioning(subscriber)
             except Exception:
                 pass
             try:
-                msg.time_allowed_to_live = iec61850.GooseSubscriber_getTimeAllowedToLive(
-                    subscriber
-                )
+                msg.time_allowed_to_live = iec61850.GooseSubscriber_getTimeAllowedToLive(subscriber)
             except Exception:
                 pass
             try:
@@ -389,18 +379,20 @@ def _extract_mms_value(mms_value) -> Any:
     try:
         mms_type = iec61850.MmsValue_getType(mms_value)
 
-        if mms_type == getattr(iec61850, 'MMS_BOOLEAN', 2):
+        if mms_type == getattr(iec61850, "MMS_BOOLEAN", 2):
             return iec61850.MmsValue_getBoolean(mms_value)
-        elif mms_type == getattr(iec61850, 'MMS_INTEGER', 4):
+        elif mms_type == getattr(iec61850, "MMS_INTEGER", 4):
             return iec61850.MmsValue_toInt32(mms_value)
-        elif mms_type == getattr(iec61850, 'MMS_UNSIGNED', 5):
+        elif mms_type == getattr(iec61850, "MMS_UNSIGNED", 5):
             return iec61850.MmsValue_toUint32(mms_value)
-        elif mms_type == getattr(iec61850, 'MMS_FLOAT', 6):
+        elif mms_type == getattr(iec61850, "MMS_FLOAT", 6):
             return iec61850.MmsValue_toFloat(mms_value)
-        elif mms_type == getattr(iec61850, 'MMS_BIT_STRING', 3):
+        elif mms_type == getattr(iec61850, "MMS_BIT_STRING", 3):
             return iec61850.MmsValue_getBitStringAsInteger(mms_value)
-        elif mms_type in (getattr(iec61850, 'MMS_VISIBLE_STRING', 8),
-                          getattr(iec61850, 'MMS_STRING', 13)):
+        elif mms_type in (
+            getattr(iec61850, "MMS_VISIBLE_STRING", 8),
+            getattr(iec61850, "MMS_STRING", 13),
+        ):
             return iec61850.MmsValue_toString(mms_value)
         else:
             return None

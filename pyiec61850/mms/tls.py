@@ -19,12 +19,13 @@ Example:
         client.connect_tls("192.168.1.100", 3782, tls)
 """
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
 import logging
+from dataclasses import dataclass, field
+from typing import Any, Dict, List
 
 try:
     import pyiec61850.pyiec61850 as iec61850
+
     _HAS_IEC61850 = True
 except ImportError:
     _HAS_IEC61850 = False
@@ -69,6 +70,7 @@ class TLSConfig:
         chain_validation: Whether to validate certificate chain
         allow_only_known_certs: Only allow connections to known certificates
     """
+
     own_cert: str = ""
     own_key: str = ""
     ca_certs: List[str] = field(default_factory=list)
@@ -105,7 +107,7 @@ def create_tls_configuration(config: TLSConfig) -> Any:
             "pyiec61850 library not found. Install with: pip install pyiec61850-ng"
         )
 
-    if not hasattr(iec61850, 'TLSConfiguration_create'):
+    if not hasattr(iec61850, "TLSConfiguration_create"):
         raise TLSError("TLS not available in SWIG bindings (requires libiec61850 with TLS)")
 
     if not config.own_cert:
@@ -119,23 +121,15 @@ def create_tls_configuration(config: TLSConfig) -> Any:
             raise TLSError("Failed to create TLSConfiguration")
 
         # Set own certificate and key
-        iec61850.TLSConfiguration_setOwnCertificateFromFile(
-            tls_config, config.own_cert
-        )
-        iec61850.TLSConfiguration_setOwnKeyFromFile(
-            tls_config, config.own_key, None
-        )
+        iec61850.TLSConfiguration_setOwnCertificateFromFile(tls_config, config.own_cert)
+        iec61850.TLSConfiguration_setOwnKeyFromFile(tls_config, config.own_key, None)
 
         # Add CA certificates
         for ca_cert in config.ca_certs:
-            iec61850.TLSConfiguration_addCACertificateFromFile(
-                tls_config, ca_cert
-            )
+            iec61850.TLSConfiguration_addCACertificateFromFile(tls_config, ca_cert)
 
         # Configure chain validation
-        iec61850.TLSConfiguration_setChainValidation(
-            tls_config, config.chain_validation
-        )
+        iec61850.TLSConfiguration_setChainValidation(tls_config, config.chain_validation)
         iec61850.TLSConfiguration_setAllowOnlyKnownCertificates(
             tls_config, config.allow_only_known_certs
         )
@@ -160,7 +154,7 @@ def destroy_tls_configuration(tls_config: Any) -> None:
         return
 
     try:
-        if _HAS_IEC61850 and hasattr(iec61850, 'TLSConfiguration_destroy'):
+        if _HAS_IEC61850 and hasattr(iec61850, "TLSConfiguration_destroy"):
             iec61850.TLSConfiguration_destroy(tls_config)
     except Exception as e:
         logger.warning(f"Error destroying TLS configuration: {e}")
@@ -182,10 +176,9 @@ def create_tls_connection(tls_config: Any) -> Any:
     if not _HAS_IEC61850:
         raise LibraryNotFoundError()
 
-    if not hasattr(iec61850, 'IedConnection_createWithTlsSupport'):
+    if not hasattr(iec61850, "IedConnection_createWithTlsSupport"):
         raise TLSError(
-            "IedConnection_createWithTlsSupport not available - "
-            "rebuild with TLS support"
+            "IedConnection_createWithTlsSupport not available - rebuild with TLS support"
         )
 
     try:

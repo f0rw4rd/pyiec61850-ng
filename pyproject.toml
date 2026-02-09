@@ -45,6 +45,17 @@ classifiers = [
 [project.entry-points."pyinstaller40"]
 hook-dirs = "pyiec61850._pyinstaller:get_hook_dirs"
 
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "C4", "UP"]
+ignore = ["E501", "E402", "UP006", "UP007", "UP035", "UP045", "B904"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+
 [project.urls]
 Homepage = "https://github.com/f0rw4rd/pyiec61850-ng"
 Documentation = "https://github.com/f0rw4rd/pyiec61850-ng#readme"

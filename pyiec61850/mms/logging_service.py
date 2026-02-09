@@ -19,13 +19,14 @@ Example:
             print(entry.entry_id, entry.timestamp, entry.values)
 """
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
-from datetime import datetime, timezone
 import logging
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
 
 try:
     import pyiec61850.pyiec61850 as iec61850
+
     _HAS_IEC61850 = True
 except ImportError:
     _HAS_IEC61850 = False
@@ -33,9 +34,8 @@ except ImportError:
 
 from .exceptions import (
     LibraryNotFoundError,
-    NotConnectedError,
     MMSError,
-    ReadError,
+    NotConnectedError,
 )
 
 logger = logging.getLogger(__name__)
@@ -64,6 +64,7 @@ class LogQueryError(LogError):
 @dataclass
 class JournalEntryData:
     """A single data value within a journal entry."""
+
     tag: str = ""
     value: Any = None
 
@@ -74,6 +75,7 @@ class JournalEntryData:
 @dataclass
 class JournalEntry:
     """An MMS journal entry (log entry)."""
+
     entry_id: str = ""
     timestamp: Optional[datetime] = None
     values: List[JournalEntryData] = field(default_factory=list)
@@ -94,6 +96,7 @@ class JournalEntry:
 @dataclass
 class LogQueryResult:
     """Result of a log query operation."""
+
     entries: List[JournalEntry] = field(default_factory=list)
     more_follows: bool = False
     entry_count: int = 0
@@ -260,16 +263,12 @@ class LogClient:
                     entry = JournalEntry()
 
                     try:
-                        entry.entry_id = iec61850.MmsJournalEntry_getEntryID(
-                            data
-                        )
+                        entry.entry_id = iec61850.MmsJournalEntry_getEntryID(data)
                     except Exception:
                         pass
 
                     try:
-                        occur_time = iec61850.MmsJournalEntry_getOccurenceTime(
-                            data
-                        )
+                        occur_time = iec61850.MmsJournalEntry_getOccurenceTime(data)
                         if occur_time:
                             entry.timestamp = datetime.fromtimestamp(
                                 occur_time / 1000.0, tz=timezone.utc
@@ -279,9 +278,7 @@ class LogClient:
 
                     # Parse journal variables
                     try:
-                        var_list = iec61850.MmsJournalEntry_getJournalVariables(
-                            data
-                        )
+                        var_list = iec61850.MmsJournalEntry_getJournalVariables(data)
                         if var_list:
                             var_elem = iec61850.LinkedList_getNext(var_list)
                             while var_elem:
@@ -289,19 +286,13 @@ class LogClient:
                                 if var_data:
                                     jv = JournalEntryData()
                                     try:
-                                        jv.tag = iec61850.MmsJournalVariable_getTag(
-                                            var_data
-                                        )
+                                        jv.tag = iec61850.MmsJournalVariable_getTag(var_data)
                                     except Exception:
                                         pass
                                     try:
-                                        mms_val = iec61850.MmsJournalVariable_getValue(
-                                            var_data
-                                        )
+                                        mms_val = iec61850.MmsJournalVariable_getValue(var_data)
                                         if mms_val:
-                                            jv.value = _extract_mms_value(
-                                                mms_val
-                                            )
+                                            jv.value = _extract_mms_value(mms_val)
                                     except Exception:
                                         pass
                                     entry.values.append(jv)
@@ -318,7 +309,7 @@ class LogClient:
 
         return entries
 
-    def __enter__(self) -> 'LogClient':
+    def __enter__(self) -> "LogClient":
         """Context manager entry."""
         return self
 
@@ -333,16 +324,18 @@ def _extract_mms_value(mms_value) -> Any:
         return None
     try:
         mms_type = iec61850.MmsValue_getType(mms_value)
-        if mms_type == getattr(iec61850, 'MMS_BOOLEAN', 2):
+        if mms_type == getattr(iec61850, "MMS_BOOLEAN", 2):
             return iec61850.MmsValue_getBoolean(mms_value)
-        elif mms_type == getattr(iec61850, 'MMS_INTEGER', 4):
+        elif mms_type == getattr(iec61850, "MMS_INTEGER", 4):
             return iec61850.MmsValue_toInt32(mms_value)
-        elif mms_type == getattr(iec61850, 'MMS_UNSIGNED', 5):
+        elif mms_type == getattr(iec61850, "MMS_UNSIGNED", 5):
             return iec61850.MmsValue_toUint32(mms_value)
-        elif mms_type == getattr(iec61850, 'MMS_FLOAT', 6):
+        elif mms_type == getattr(iec61850, "MMS_FLOAT", 6):
             return iec61850.MmsValue_toFloat(mms_value)
-        elif mms_type in (getattr(iec61850, 'MMS_VISIBLE_STRING', 8),
-                          getattr(iec61850, 'MMS_STRING', 13)):
+        elif mms_type in (
+            getattr(iec61850, "MMS_VISIBLE_STRING", 8),
+            getattr(iec61850, "MMS_STRING", 13),
+        ):
             return iec61850.MmsValue_toString(mms_value)
         else:
             return None

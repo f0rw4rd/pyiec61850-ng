@@ -18,25 +18,25 @@ Example:
         time.sleep(10)
 """
 
-from typing import Any, Callable, List, Optional
-from datetime import datetime, timezone
 import logging
+from datetime import datetime, timezone
+from typing import Callable, Optional
 
 try:
     import pyiec61850.pyiec61850 as iec61850
+
     _HAS_IEC61850 = True
 except ImportError:
     _HAS_IEC61850 = False
     iec61850 = None
 
 from .exceptions import (
-    LibraryNotFoundError,
-    InterfaceError,
-    SubscriptionError,
-    ConfigurationError,
-    NotStartedError,
     AlreadyStartedError,
-    SVError,
+    ConfigurationError,
+    InterfaceError,
+    LibraryNotFoundError,
+    NotStartedError,
+    SubscriptionError,
 )
 from .types import SVMessage
 
@@ -190,9 +190,7 @@ class SVSubscriber:
 
             # Create subscriber with optional APPID filter
             if self._app_id is not None:
-                self._subscriber = iec61850.SVSubscriber_create(
-                    self._dst_mac, self._app_id
-                )
+                self._subscriber = iec61850.SVSubscriber_create(self._dst_mac, self._app_id)
             else:
                 self._subscriber = iec61850.SVSubscriber_create(None, 0)
 
@@ -212,8 +210,7 @@ class SVSubscriber:
 
             if not iec61850.SVReceiver_isRunning(self._receiver):
                 raise InterfaceError(
-                    self._interface,
-                    "SVReceiver failed to start (check permissions and interface)"
+                    self._interface, "SVReceiver failed to start (check permissions and interface)"
                 )
 
             self._running = True
@@ -248,7 +245,7 @@ class SVSubscriber:
                 msg.conf_rev = iec61850.SVSubscriber_getConfRev(self._subscriber)
                 msg.smp_synch = iec61850.SVSubscriber_getSmpSynch(self._subscriber)
 
-                if hasattr(iec61850, 'SVSubscriber_getSVID'):
+                if hasattr(iec61850, "SVSubscriber_getSVID"):
                     msg.sv_id = iec61850.SVSubscriber_getSVID(self._subscriber)
 
                 # Read ASDU values (typically 8 values: 4 currents + 4 voltages)
@@ -305,7 +302,7 @@ class SVSubscriber:
         self._subscriber = None
         self._running = False
 
-    def __enter__(self) -> 'SVSubscriber':
+    def __enter__(self) -> "SVSubscriber":
         """Context manager entry."""
         return self
 

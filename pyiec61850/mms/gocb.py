@@ -16,12 +16,13 @@ Example:
         print(f"GOOSE ID: {info.goose_id}, Dataset: {info.dataset}")
 """
 
-from dataclasses import dataclass
-from typing import Any, List, Optional
 import logging
+from dataclasses import dataclass
+from typing import List
 
 try:
     import pyiec61850.pyiec61850 as iec61850
+
     _HAS_IEC61850 = True
 except ImportError:
     _HAS_IEC61850 = False
@@ -29,12 +30,11 @@ except ImportError:
 
 from .exceptions import (
     LibraryNotFoundError,
-    NotConnectedError,
     MMSError,
+    NotConnectedError,
     ReadError,
 )
 from .utils import (
-    safe_linked_list_iter,
     LinkedListGuard,
     unpack_result,
 )
@@ -59,7 +59,7 @@ def _format_mac(mms_mac_value) -> str:
             return ""
         octets = []
         for i in range(6):
-            octets.append(format(iec61850.MmsValue_getOctetStringOctet(mms_mac_value, i), '02x'))
+            octets.append(format(iec61850.MmsValue_getOctetStringOctet(mms_mac_value, i), "02x"))
         return ":".join(octets)
     except Exception:
         return ""
@@ -68,6 +68,7 @@ def _format_mac(mms_mac_value) -> str:
 @dataclass
 class GoCBInfo:
     """GOOSE Control Block configuration read from a server."""
+
     gocb_ref: str = ""
     goose_id: str = ""
     dataset: str = ""
@@ -131,9 +132,7 @@ class GoCBClient:
 
         gocb = None
         try:
-            result = iec61850.IedConnection_getGoCBValues(
-                conn, gocb_ref, None
-            )
+            result = iec61850.IedConnection_getGoCBValues(conn, gocb_ref, None)
 
             if isinstance(result, tuple):
                 gocb_handle, error = result[0], result[-1]
@@ -204,9 +203,7 @@ class GoCBClient:
         except Exception:
             pass
         try:
-            info.vlan_priority = int(
-                iec61850.ClientGooseControlBlock_getDstAddress_priority(gocb)
-            )
+            info.vlan_priority = int(iec61850.ClientGooseControlBlock_getDstAddress_priority(gocb))
         except Exception:
             pass
         try:
@@ -255,7 +252,7 @@ class GoCBClient:
 
             for node in nodes:
                 reference = f"{device}/{node}"
-                acsi_class_gocb = getattr(iec61850, 'ACSI_CLASS_GoCB', 7)
+                acsi_class_gocb = getattr(iec61850, "ACSI_CLASS_GoCB", 7)
 
                 try:
                     dir_result = iec61850.IedConnection_getLogicalNodeDirectory(
@@ -281,7 +278,7 @@ class GoCBClient:
 
         return results
 
-    def __enter__(self) -> 'GoCBClient':
+    def __enter__(self) -> "GoCBClient":
         """Context manager entry."""
         return self
 

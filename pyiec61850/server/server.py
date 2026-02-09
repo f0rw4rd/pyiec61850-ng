@@ -16,27 +16,27 @@ Example:
         server.stop()
 """
 
-from typing import Any, Callable, Dict, List, Optional
 import logging
+from typing import Any, Callable, Dict, Optional
 
 try:
     import pyiec61850.pyiec61850 as iec61850
+
     _HAS_IEC61850 = True
 except ImportError:
     _HAS_IEC61850 = False
     iec61850 = None
 
 from .exceptions import (
+    AlreadyRunningError,
+    ControlHandlerError,
     LibraryNotFoundError,
     ModelError,
-    ConfigurationError,
     NotRunningError,
-    AlreadyRunningError,
-    UpdateError,
-    ControlHandlerError,
     ServerError,
+    UpdateError,
 )
-from .types import ServerConfig, ClientConnection
+from .types import ServerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -104,12 +104,10 @@ class IedServer:
     def _load_model(self, model_path: str) -> None:
         """Load the IEC 61850 data model from file."""
         try:
-            if hasattr(iec61850, 'IedModel_createFromConfigFile'):
+            if hasattr(iec61850, "IedModel_createFromConfigFile"):
                 self._model = iec61850.IedModel_createFromConfigFile(model_path)
-            elif hasattr(iec61850, 'ConfigFileParser_createModelFromConfigFile'):
-                self._model = iec61850.ConfigFileParser_createModelFromConfigFile(
-                    model_path
-                )
+            elif hasattr(iec61850, "ConfigFileParser_createModelFromConfigFile"):
+                self._model = iec61850.ConfigFileParser_createModelFromConfigFile(model_path)
             else:
                 raise ModelError("No model loading API available in bindings")
 
@@ -145,37 +143,37 @@ class IedServer:
             self._port = port
 
             # Create server configuration
-            if hasattr(iec61850, 'IedServerConfig_create'):
+            if hasattr(iec61850, "IedServerConfig_create"):
                 self._ied_server_config = iec61850.IedServerConfig_create()
                 if self._ied_server_config:
-                    if hasattr(iec61850, 'IedServerConfig_setMaxMmsConnections'):
+                    if hasattr(iec61850, "IedServerConfig_setMaxMmsConnections"):
                         iec61850.IedServerConfig_setMaxMmsConnections(
                             self._ied_server_config, self._config.max_connections
                         )
                     if self._config.file_service_base_path and hasattr(
-                        iec61850, 'IedServerConfig_setFileServiceBasePath'
+                        iec61850, "IedServerConfig_setFileServiceBasePath"
                     ):
                         iec61850.IedServerConfig_setFileServiceBasePath(
                             self._ied_server_config,
                             self._config.file_service_base_path,
                         )
-                    if hasattr(iec61850, 'IedServerConfig_setEdition'):
+                    if hasattr(iec61850, "IedServerConfig_setEdition"):
                         iec61850.IedServerConfig_setEdition(
                             self._ied_server_config, self._config.edition
                         )
-                    if hasattr(iec61850, 'IedServerConfig_enableDynamicDataSetService'):
+                    if hasattr(iec61850, "IedServerConfig_enableDynamicDataSetService"):
                         iec61850.IedServerConfig_enableDynamicDataSetService(
                             self._ied_server_config,
                             self._config.enable_dynamic_datasets,
                         )
-                    if hasattr(iec61850, 'IedServerConfig_enableFileService'):
+                    if hasattr(iec61850, "IedServerConfig_enableFileService"):
                         iec61850.IedServerConfig_enableFileService(
                             self._ied_server_config,
                             self._config.enable_file_service,
                         )
 
             # Create IED server
-            if self._ied_server_config and hasattr(iec61850, 'IedServer_createWithConfig'):
+            if self._ied_server_config and hasattr(iec61850, "IedServer_createWithConfig"):
                 self._server = iec61850.IedServer_createWithConfig(
                     self._model, None, self._ied_server_config
                 )
@@ -245,7 +243,7 @@ class IedServer:
 
         if self._ied_server_config:
             try:
-                if hasattr(iec61850, 'IedServerConfig_destroy'):
+                if hasattr(iec61850, "IedServerConfig_destroy"):
                     iec61850.IedServerConfig_destroy(self._ied_server_config)
             except Exception:
                 pass
@@ -275,15 +273,11 @@ class IedServer:
             raise NotRunningError()
 
         try:
-            node = iec61850.IedModel_getModelNodeByObjectReference(
-                self._model, reference
-            )
+            node = iec61850.IedModel_getModelNodeByObjectReference(self._model, reference)
             if not node:
                 raise UpdateError(reference, "node not found in model")
 
-            iec61850.IedServer_updateBooleanAttributeValue(
-                self._server, node, value
-            )
+            iec61850.IedServer_updateBooleanAttributeValue(self._server, node, value)
         except NotRunningError:
             raise
         except UpdateError:
@@ -307,15 +301,11 @@ class IedServer:
             raise NotRunningError()
 
         try:
-            node = iec61850.IedModel_getModelNodeByObjectReference(
-                self._model, reference
-            )
+            node = iec61850.IedModel_getModelNodeByObjectReference(self._model, reference)
             if not node:
                 raise UpdateError(reference, "node not found in model")
 
-            iec61850.IedServer_updateInt32AttributeValue(
-                self._server, node, value
-            )
+            iec61850.IedServer_updateInt32AttributeValue(self._server, node, value)
         except NotRunningError:
             raise
         except UpdateError:
@@ -339,15 +329,11 @@ class IedServer:
             raise NotRunningError()
 
         try:
-            node = iec61850.IedModel_getModelNodeByObjectReference(
-                self._model, reference
-            )
+            node = iec61850.IedModel_getModelNodeByObjectReference(self._model, reference)
             if not node:
                 raise UpdateError(reference, "node not found in model")
 
-            iec61850.IedServer_updateFloatAttributeValue(
-                self._server, node, value
-            )
+            iec61850.IedServer_updateFloatAttributeValue(self._server, node, value)
         except NotRunningError:
             raise
         except UpdateError:
@@ -371,15 +357,11 @@ class IedServer:
             raise NotRunningError()
 
         try:
-            node = iec61850.IedModel_getModelNodeByObjectReference(
-                self._model, reference
-            )
+            node = iec61850.IedModel_getModelNodeByObjectReference(self._model, reference)
             if not node:
                 raise UpdateError(reference, "node not found in model")
 
-            iec61850.IedServer_updateVisibleStringAttributeValue(
-                self._server, node, value
-            )
+            iec61850.IedServer_updateVisibleStringAttributeValue(self._server, node, value)
         except NotRunningError:
             raise
         except UpdateError:
@@ -403,9 +385,7 @@ class IedServer:
             raise NotRunningError()
 
         try:
-            node = iec61850.IedModel_getModelNodeByObjectReference(
-                self._model, reference
-            )
+            node = iec61850.IedModel_getModelNodeByObjectReference(self._model, reference)
             if not node:
                 raise UpdateError(reference, "node not found in model")
 
@@ -433,15 +413,11 @@ class IedServer:
             raise NotRunningError()
 
         try:
-            node = iec61850.IedModel_getModelNodeByObjectReference(
-                self._model, reference
-            )
+            node = iec61850.IedModel_getModelNodeByObjectReference(self._model, reference)
             if not node:
                 raise UpdateError(reference, "node not found in model")
 
-            iec61850.IedServer_updateUTCTimeAttributeValue(
-                self._server, node, timestamp_ms
-            )
+            iec61850.IedServer_updateUTCTimeAttributeValue(self._server, node, timestamp_ms)
         except NotRunningError:
             raise
         except UpdateError:
@@ -476,15 +452,11 @@ class IedServer:
             raise ControlHandlerError("handler must be callable")
 
         try:
-            node = iec61850.IedModel_getModelNodeByObjectReference(
-                self._model, object_ref
-            )
+            node = iec61850.IedModel_getModelNodeByObjectReference(self._model, object_ref)
             if not node:
-                raise ControlHandlerError(
-                    f"control object '{object_ref}' not found in model"
-                )
+                raise ControlHandlerError(f"control object '{object_ref}' not found in model")
 
-            if hasattr(iec61850, 'ControlSubscriberForPython'):
+            if hasattr(iec61850, "ControlSubscriberForPython"):
                 ctrl_sub = iec61850.ControlSubscriberForPython()
                 ctrl_sub.setIedServer(self._server)
                 ctrl_sub.setControlObject(node)
@@ -496,9 +468,7 @@ class IedServer:
                 self._control_subscribers[object_ref] = ctrl_sub
                 self._control_handlers[object_ref] = ctrl_handler
             else:
-                logger.warning(
-                    "ControlSubscriberForPython not available in SWIG bindings"
-                )
+                logger.warning("ControlSubscriberForPython not available in SWIG bindings")
 
             logger.info(f"Control handler installed for {object_ref}")
 
@@ -586,7 +556,7 @@ class IedServer:
             raise NotRunningError()
         iec61850.IedServer_unlockDataModel(self._server)
 
-    def __enter__(self) -> 'IedServer':
+    def __enter__(self) -> "IedServer":
         """Context manager entry."""
         return self
 
@@ -615,7 +585,7 @@ class _PyControlHandler:
         self._callback = callback
         self._object_ref = object_ref
 
-        if _HAS_IEC61850 and hasattr(iec61850, 'ControlHandlerForPython'):
+        if _HAS_IEC61850 and hasattr(iec61850, "ControlHandlerForPython"):
             try:
                 iec61850.ControlHandlerForPython.__init__(self)
             except Exception:

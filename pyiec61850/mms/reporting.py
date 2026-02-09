@@ -16,13 +16,14 @@ Example:
         reports.enable_reporting("myLD/LLN0$BR$brcb01")
 """
 
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
-from datetime import datetime, timezone
 import logging
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from typing import Any, Callable, Dict, List, Optional
 
 try:
     import pyiec61850.pyiec61850 as iec61850
+
     _HAS_IEC61850 = True
 except ImportError:
     _HAS_IEC61850 = False
@@ -30,10 +31,9 @@ except ImportError:
 
 from .exceptions import (
     LibraryNotFoundError,
-    NotConnectedError,
     MMSError,
+    NotConnectedError,
     ReadError,
-    WriteError,
 )
 
 logger = logging.getLogger(__name__)
@@ -62,6 +62,7 @@ class ReportConfigError(ReportError):
 @dataclass
 class ReportEntry:
     """A single data entry within a received report."""
+
     reference: str = ""
     value: Any = None
     reason_code: int = 0
@@ -79,6 +80,7 @@ class ReportEntry:
 @dataclass
 class Report:
     """Received IEC 61850 Report."""
+
     rcb_reference: str = ""
     rpt_id: str = ""
     data_set_name: str = ""
@@ -107,6 +109,7 @@ class Report:
 @dataclass
 class RCBConfig:
     """Report Control Block configuration parameters."""
+
     rpt_id: Optional[str] = None
     data_set: Optional[str] = None
     trigger_options: Optional[int] = None
@@ -225,9 +228,7 @@ class ReportClient:
         config = RCBConfig()
 
         try:
-            result = iec61850.IedConnection_getRCBValues(
-                conn, rcb_reference, None
-            )
+            result = iec61850.IedConnection_getRCBValues(conn, rcb_reference, None)
 
             if isinstance(result, tuple):
                 rcb_values, error = result[0], result[-1]
@@ -238,33 +239,23 @@ class ReportClient:
 
             if rcb_values:
                 try:
-                    config.rpt_id = iec61850.ClientReportControlBlock_getRptId(
-                        rcb_values
-                    )
+                    config.rpt_id = iec61850.ClientReportControlBlock_getRptId(rcb_values)
                 except Exception:
                     pass
                 try:
-                    config.data_set = iec61850.ClientReportControlBlock_getDataSetName(
-                        rcb_values
-                    )
+                    config.data_set = iec61850.ClientReportControlBlock_getDataSetName(rcb_values)
                 except Exception:
                     pass
                 try:
-                    config.trigger_options = iec61850.ClientReportControlBlock_getTrgOps(
-                        rcb_values
-                    )
+                    config.trigger_options = iec61850.ClientReportControlBlock_getTrgOps(rcb_values)
                 except Exception:
                     pass
                 try:
-                    config.option_fields = iec61850.ClientReportControlBlock_getOptFlds(
-                        rcb_values
-                    )
+                    config.option_fields = iec61850.ClientReportControlBlock_getOptFlds(rcb_values)
                 except Exception:
                     pass
                 try:
-                    config.buffer_time = iec61850.ClientReportControlBlock_getBufTm(
-                        rcb_values
-                    )
+                    config.buffer_time = iec61850.ClientReportControlBlock_getBufTm(rcb_values)
                 except Exception:
                     pass
                 try:
@@ -274,9 +265,7 @@ class ReportClient:
                 except Exception:
                     pass
                 try:
-                    config.rpt_ena = iec61850.ClientReportControlBlock_getRptEna(
-                        rcb_values
-                    )
+                    config.rpt_ena = iec61850.ClientReportControlBlock_getRptEna(rcb_values)
                 except Exception:
                     pass
 
@@ -305,9 +294,7 @@ class ReportClient:
 
         try:
             # Read current values first
-            result = iec61850.IedConnection_getRCBValues(
-                conn, rcb_reference, None
-            )
+            result = iec61850.IedConnection_getRCBValues(conn, rcb_reference, None)
 
             if isinstance(result, tuple):
                 rcb_values, error = result[0], result[-1]
@@ -323,77 +310,43 @@ class ReportClient:
             parametersMask = 0
 
             if config.rpt_id is not None:
-                iec61850.ClientReportControlBlock_setRptId(
-                    rcb_values, config.rpt_id
-                )
-                parametersMask |= getattr(
-                    iec61850, 'RCB_ELEMENT_RPT_ID', 0x01
-                )
+                iec61850.ClientReportControlBlock_setRptId(rcb_values, config.rpt_id)
+                parametersMask |= getattr(iec61850, "RCB_ELEMENT_RPT_ID", 0x01)
 
             if config.data_set is not None:
-                iec61850.ClientReportControlBlock_setDataSetName(
-                    rcb_values, config.data_set
-                )
-                parametersMask |= getattr(
-                    iec61850, 'RCB_ELEMENT_DATSET', 0x02
-                )
+                iec61850.ClientReportControlBlock_setDataSetName(rcb_values, config.data_set)
+                parametersMask |= getattr(iec61850, "RCB_ELEMENT_DATSET", 0x02)
 
             if config.trigger_options is not None:
-                iec61850.ClientReportControlBlock_setTrgOps(
-                    rcb_values, config.trigger_options
-                )
-                parametersMask |= getattr(
-                    iec61850, 'RCB_ELEMENT_TRG_OPS', 0x10
-                )
+                iec61850.ClientReportControlBlock_setTrgOps(rcb_values, config.trigger_options)
+                parametersMask |= getattr(iec61850, "RCB_ELEMENT_TRG_OPS", 0x10)
 
             if config.option_fields is not None:
-                iec61850.ClientReportControlBlock_setOptFlds(
-                    rcb_values, config.option_fields
-                )
-                parametersMask |= getattr(
-                    iec61850, 'RCB_ELEMENT_OPT_FLDS', 0x08
-                )
+                iec61850.ClientReportControlBlock_setOptFlds(rcb_values, config.option_fields)
+                parametersMask |= getattr(iec61850, "RCB_ELEMENT_OPT_FLDS", 0x08)
 
             if config.buffer_time is not None:
-                iec61850.ClientReportControlBlock_setBufTm(
-                    rcb_values, config.buffer_time
-                )
-                parametersMask |= getattr(
-                    iec61850, 'RCB_ELEMENT_BUF_TM', 0x20
-                )
+                iec61850.ClientReportControlBlock_setBufTm(rcb_values, config.buffer_time)
+                parametersMask |= getattr(iec61850, "RCB_ELEMENT_BUF_TM", 0x20)
 
             if config.integrity_period is not None:
-                iec61850.ClientReportControlBlock_setIntgPd(
-                    rcb_values, config.integrity_period
-                )
-                parametersMask |= getattr(
-                    iec61850, 'RCB_ELEMENT_INTG_PD', 0x80
-                )
+                iec61850.ClientReportControlBlock_setIntgPd(rcb_values, config.integrity_period)
+                parametersMask |= getattr(iec61850, "RCB_ELEMENT_INTG_PD", 0x80)
 
             if config.rpt_ena is not None:
-                iec61850.ClientReportControlBlock_setRptEna(
-                    rcb_values, config.rpt_ena
-                )
-                parametersMask |= getattr(
-                    iec61850, 'RCB_ELEMENT_RPT_ENA', 0x04
-                )
+                iec61850.ClientReportControlBlock_setRptEna(rcb_values, config.rpt_ena)
+                parametersMask |= getattr(iec61850, "RCB_ELEMENT_RPT_ENA", 0x04)
 
             if config.gi is not None:
                 iec61850.ClientReportControlBlock_setGI(rcb_values, config.gi)
-                parametersMask |= getattr(iec61850, 'RCB_ELEMENT_GI', 0x40)
+                parametersMask |= getattr(iec61850, "RCB_ELEMENT_GI", 0x40)
 
             if config.resv is not None:
-                iec61850.ClientReportControlBlock_setResv(
-                    rcb_values, config.resv
-                )
-                parametersMask |= getattr(
-                    iec61850, 'RCB_ELEMENT_RESV', 0x100
-                )
+                iec61850.ClientReportControlBlock_setResv(rcb_values, config.resv)
+                parametersMask |= getattr(iec61850, "RCB_ELEMENT_RESV", 0x100)
 
             # Write back to server
-            error = iec61850.IedConnection_setRCBValues(
-                conn, rcb_values, parametersMask, True
-            )
+            error = iec61850.IedConnection_setRCBValues(conn, rcb_values, parametersMask, True)
 
             if isinstance(error, tuple):
                 error = error[-1]
@@ -436,7 +389,7 @@ class ReportClient:
             raise ReportError("callback must be callable")
 
         try:
-            if hasattr(iec61850, 'RCBHandler') and hasattr(iec61850, 'RCBSubscriber'):
+            if hasattr(iec61850, "RCBHandler") and hasattr(iec61850, "RCBSubscriber"):
                 handler = _PyRCBHandler(callback, rcb_reference)
                 subscriber = iec61850.RCBSubscriber()
                 subscriber.setIedConnection(conn)
@@ -446,19 +399,14 @@ class ReportClient:
                 result = subscriber.subscribe()
 
                 if not result:
-                    raise ReportError(
-                        f"Failed to subscribe to RCB {rcb_reference}"
-                    )
+                    raise ReportError(f"Failed to subscribe to RCB {rcb_reference}")
 
                 self._handlers[rcb_reference] = handler
                 self._subscribers[rcb_reference] = subscriber
                 self._callbacks[rcb_reference] = callback
             else:
                 # Fallback: use IedConnection_installReportHandler directly
-                iec61850.IedConnection_installReportHandler(
-                    conn, rcb_reference, rpt_id,
-                    None, None
-                )
+                iec61850.IedConnection_installReportHandler(conn, rcb_reference, rpt_id, None, None)
                 self._callbacks[rcb_reference] = callback
 
             logger.info(f"Report handler installed for {rcb_reference}")
@@ -534,7 +482,7 @@ class ReportClient:
         self._callbacks.clear()
         logger.info("All report handlers uninstalled")
 
-    def __enter__(self) -> 'ReportClient':
+    def __enter__(self) -> "ReportClient":
         """Context manager entry."""
         return self
 
@@ -556,7 +504,7 @@ class _PyRCBHandler:
         self._callback = callback
         self._rcb_reference = rcb_reference
 
-        if _HAS_IEC61850 and hasattr(iec61850, 'RCBHandler'):
+        if _HAS_IEC61850 and hasattr(iec61850, "RCBHandler"):
             try:
                 iec61850.RCBHandler.__init__(self)
             except Exception:
@@ -574,9 +522,7 @@ class _PyRCBHandler:
             except Exception:
                 pass
             try:
-                report.data_set_name = iec61850.ClientReport_getDataSetName(
-                    client_report
-                )
+                report.data_set_name = iec61850.ClientReport_getDataSetName(client_report)
             except Exception:
                 pass
             try:
@@ -584,9 +530,7 @@ class _PyRCBHandler:
             except Exception:
                 pass
             try:
-                report.sub_seq_num = iec61850.ClientReport_getSubSeqNum(
-                    client_report
-                )
+                report.sub_seq_num = iec61850.ClientReport_getSubSeqNum(client_report)
             except Exception:
                 pass
             try:
@@ -596,35 +540,25 @@ class _PyRCBHandler:
             except Exception:
                 pass
             try:
-                report.has_timestamp = iec61850.ClientReport_hasTimestamp(
-                    client_report
-                )
+                report.has_timestamp = iec61850.ClientReport_hasTimestamp(client_report)
             except Exception:
                 pass
             try:
-                report.buf_overflow = iec61850.ClientReport_hasBufOvfl(
-                    client_report
-                )
+                report.buf_overflow = iec61850.ClientReport_hasBufOvfl(client_report)
             except Exception:
                 pass
             try:
-                report.conf_rev = iec61850.ClientReport_getConfRev(
-                    client_report
-                )
+                report.conf_rev = iec61850.ClientReport_getConfRev(client_report)
             except Exception:
                 pass
 
             # Extract data set values
             try:
-                data_set_values = iec61850.ClientReport_getDataSetValues(
-                    client_report
-                )
+                data_set_values = iec61850.ClientReport_getDataSetValues(client_report)
                 if data_set_values:
                     count = iec61850.MmsValue_getArraySize(data_set_values)
                     for i in range(count):
-                        element = iec61850.MmsValue_getElement(
-                            data_set_values, i
-                        )
+                        element = iec61850.MmsValue_getElement(data_set_values, i)
                         if element:
                             entry = ReportEntry(
                                 value=_extract_mms_value(element),
@@ -658,18 +592,20 @@ def _extract_mms_value(mms_value) -> Any:
     try:
         mms_type = iec61850.MmsValue_getType(mms_value)
 
-        if mms_type == getattr(iec61850, 'MMS_BOOLEAN', 2):
+        if mms_type == getattr(iec61850, "MMS_BOOLEAN", 2):
             return iec61850.MmsValue_getBoolean(mms_value)
-        elif mms_type == getattr(iec61850, 'MMS_INTEGER', 4):
+        elif mms_type == getattr(iec61850, "MMS_INTEGER", 4):
             return iec61850.MmsValue_toInt32(mms_value)
-        elif mms_type == getattr(iec61850, 'MMS_UNSIGNED', 5):
+        elif mms_type == getattr(iec61850, "MMS_UNSIGNED", 5):
             return iec61850.MmsValue_toUint32(mms_value)
-        elif mms_type == getattr(iec61850, 'MMS_FLOAT', 6):
+        elif mms_type == getattr(iec61850, "MMS_FLOAT", 6):
             return iec61850.MmsValue_toFloat(mms_value)
-        elif mms_type in (getattr(iec61850, 'MMS_VISIBLE_STRING', 8),
-                          getattr(iec61850, 'MMS_STRING', 13)):
+        elif mms_type in (
+            getattr(iec61850, "MMS_VISIBLE_STRING", 8),
+            getattr(iec61850, "MMS_STRING", 13),
+        ):
             return iec61850.MmsValue_toString(mms_value)
-        elif mms_type == getattr(iec61850, 'MMS_BIT_STRING', 3):
+        elif mms_type == getattr(iec61850, "MMS_BIT_STRING", 3):
             return iec61850.MmsValue_getBitStringAsInteger(mms_value)
         else:
             return None
