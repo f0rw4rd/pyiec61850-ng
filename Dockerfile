@@ -101,9 +101,10 @@ RUN pip install build wheel setuptools && \
 # Generate SHA256 checksums
 RUN cd dist && sha256sum *.whl > SHA256SUMS
 
-# Test stage: install the wheel and verify both ctypes and SWIG imports work
+# Test stage: install the wheel, verify imports, and run SWIG safety tests
 FROM python:3.12-slim-bookworm AS tester
 COPY --from=builder /build/pyiec61850-package/dist/*.whl /tmp/wheels/
+COPY tests/test_swig_safety.py /tmp/tests/test_swig_safety.py
 RUN pip install /tmp/wheels/*.whl && \
     python -c "import pyiec61850; print('pyiec61850 import OK')" && \
     python -c "import pyiec61850.pyiec61850; print('SWIG bindings OK')" && \
@@ -111,7 +112,9 @@ RUN pip install /tmp/wheels/*.whl && \
     python -c "from pyiec61850 import tase2; print(f'tase2 {tase2.__version__} OK')" && \
     python -c "from pyiec61850 import goose; print(f'goose {goose.__version__} OK')" && \
     python -c "from pyiec61850 import sv; print(f'sv {sv.__version__} OK')" && \
-    python -c "from pyiec61850 import server; print(f'server {server.__version__} OK')"
+    python -c "from pyiec61850 import server; print(f'server {server.__version__} OK')" && \
+    python -m unittest /tmp/tests/test_swig_safety.py -v 2>&1 | tail -30 && \
+    echo "SWIG safety tests passed"
 
 # Final output stage
 FROM python:3.12-slim-bookworm
