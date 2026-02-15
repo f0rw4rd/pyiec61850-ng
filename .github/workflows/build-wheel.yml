@@ -98,7 +98,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Download wheel
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
         with:
           name: wheel-universal
           path: ./dist
@@ -509,7 +509,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Download wheel
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
         with:
           name: wheel-windows-${{ matrix.python-version }}
           path: ./dist
@@ -571,7 +571,7 @@ jobs:
           echo "libiec61850_version=${LIBIEC61850_VERSION}" >> $GITHUB_OUTPUT
 
       - name: Download all wheels
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
         with:
           pattern: wheel-*
           path: dist
@@ -621,7 +621,7 @@ jobs:
 
     steps:
       - name: Download all wheels
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
         with:
           pattern: wheel-*
           path: dist
