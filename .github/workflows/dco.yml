@@ -1,0 +1,33 @@
+# ============================================================================
+# DCO (Developer Certificate of Origin) Check
+# ============================================================================
+#
+# Verifies all commits in a PR have a Signed-off-by line.
+# Contributors sign off with: git commit -s
+#
+# See https://developercertificate.org/ for the full DCO text.
+# ============================================================================
+
+name: DCO
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  dco:
+    name: DCO check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Check DCO sign-off
+        uses: dcoapp/app@65e82aa556058e96e8e9cf6fb04f0ec6bbfd6d5c  # v1.2.0
