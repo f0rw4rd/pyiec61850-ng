@@ -1,0 +1,84 @@
+name: Build / Installation Issue
+description: Problems building from source, installing wheels, or loading the compiled library
+labels: ["build", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Having trouble building or installing? Please provide as much detail as possible.
+
+  - type: dropdown
+    id: problem
+    attributes:
+      label: Problem type
+      options:
+        - pip install fails
+        - No wheel available for my platform
+        - Build from source fails (CMake / SWIG / compiler)
+        - Import error (missing .so/.pyd, symbol errors)
+        - Segfault on import or first call
+        - Version mismatch (libiec61850 vs bindings)
+        - PyInstaller / cx_Freeze packaging
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Linux x86_64
+        - Linux aarch64 / ARM
+        - Windows x86_64
+        - macOS x86_64
+        - macOS ARM (Apple Silicon)
+        - Docker
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install_method
+    attributes:
+      label: Installation method
+      options:
+        - pip install pyiec61850-ng (from PyPI)
+        - pip install from GitHub release wheel
+        - pip install git+https (build from source)
+        - Manual build (setup.py / CMake)
+        - Docker
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Be as specific as possible
+      placeholder: |
+        - Python: 3.12.1
+        - OS: Ubuntu 24.04 / Windows 11 / macOS 15
+        - Architecture: x86_64 / aarch64 / arm64
+        - Compiler (if building): gcc 13.2 / MSVC 17 / clang 16
+        - CMake version (if building): 3.28
+        - SWIG version (if building): 4.2
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Build / error output
+      description: Full output of the failing command
+      render: text
+    validations:
+      required: true

@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/f0rw4rd/pyiec61850-ng/security/advisories/new
+    about: Report security vulnerabilities privately via GitHub Security Advisories
+  - name: Questions / Discussion
+    url: https://github.com/f0rw4rd/pyiec61850-ng/discussions
+    about: Ask questions or start a discussion
+  - name: libiec61850 upstream issues
+    url: https://github.com/mz-automation/libiec61850/issues
+    about: For bugs in the underlying C library itself, report upstream
