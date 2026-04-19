@@ -46,17 +46,32 @@ MMS_BIT_STRING = getattr(iec61850, "MMS_BIT_STRING", 4) if iec61850 else 4
 
 from .exceptions import (
     ConnectionFailedError,
+    FileTransferError,
     LibraryNotFoundError,
     MMSError,
     NotConnectedError,
     ReadError,
     WriteError,
 )
+from .tls import (
+    TLSConfig,
+    create_tls_configuration,
+    create_tls_connection,
+    destroy_tls_configuration,
+)
 from .utils import (
     IdentityGuard,
     LinkedListGuard,
+    mms_value_to_python,
     safe_mms_value_delete,
     unpack_result,
+)
+
+
+_FC_NAMES = (
+    "ST", "MX", "SP", "SV", "CF", "DC", "SG", "SE",
+    "SR", "OR", "BL", "EX", "CO", "US", "MS", "RP",
+    "BR", "LG", "GO",
 )
 
 logger = logging.getLogger(__name__)
@@ -112,19 +127,46 @@ class MMSClient:
     """
 
     DEFAULT_PORT = 102
+    DEFAULT_TLS_PORT = 3782
     DEFAULT_TIMEOUT = 10000  # 10 seconds
 
-    def __init__(self):
-        """Initialize MMS client."""
+    def __init__(
+        self,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
+        timeout: int = DEFAULT_TIMEOUT,
+        max_pdu_size: Optional[int] = None,
+        tls: Optional[TLSConfig] = None,
+    ):
+        """
+        Initialize MMS client.
+
+        Connection parameters can be supplied here and reused by later
+        calls to ``connect()`` (or by ``__enter__`` auto-connect). They
+        can also be overridden per-call.
+
+        Args:
+            host: Optional default server hostname. If provided, the
+                context-manager form auto-connects on entry.
+            port: Default server port.
+            timeout: Default connection timeout in milliseconds.
+            max_pdu_size: Default max MMS PDU size in bytes, or None to
+                use libiec61850's default.
+        """
         if not _HAS_IEC61850:
             raise LibraryNotFoundError(
                 "pyiec61850 library not found. Install with: pip install pyiec61850-ng"
             )
 
         self._connection = None
-        self._host: Optional[str] = None
-        self._port: int = self.DEFAULT_PORT
-        self._timeout: int = self.DEFAULT_TIMEOUT
+        self._host: Optional[str] = host
+        if port is None:
+            port = self.DEFAULT_TLS_PORT if tls is not None else self.DEFAULT_PORT
+        self._port: int = port
+        self._timeout: int = timeout
+        self._max_pdu_size: Optional[int] = max_pdu_size
+        self._tls_config: Optional[TLSConfig] = tls
+        self._native_tls_config: Any = None
 
     @property
     def host(self) -> Optional[str]:
@@ -143,39 +185,83 @@ class MMSClient:
 
     def connect(
         self,
-        host: str,
-        port: int = DEFAULT_PORT,
-        timeout: int = DEFAULT_TIMEOUT,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
+        timeout: Optional[int] = None,
+        max_pdu_size: Optional[int] = None,
     ) -> bool:
         """
         Connect to MMS server.
+
+        All arguments default to the values supplied to ``__init__``; any
+        given here override those defaults for this connect call (and
+        become the new stored defaults).
 
         Args:
             host: Server hostname or IP address
             port: Server port (default 102)
             timeout: Connection timeout in milliseconds
+            max_pdu_size: Optional max MMS PDU size in bytes. Must be set
+                before the MMS association is negotiated, so it can only
+                be applied here — not via a post-connect setter.
+                libiec61850's default is 65000
+                (CONFIG_MMS_MAXIMUM_PDU_SIZE); lower it only for servers
+                that advertise a smaller PDU.
 
         Returns:
             True if connected successfully
 
         Raises:
             ConnectionFailedError: If connection fails
+            ValueError: If no host was supplied here or via __init__
         """
         if self.is_connected:
             self.disconnect()
 
-        self._host = host
-        self._port = port
-        self._timeout = timeout
+        if host is not None:
+            self._host = host
+        if port is not None:
+            self._port = port
+        if timeout is not None:
+            self._timeout = timeout
+        if max_pdu_size is not None:
+            self._max_pdu_size = max_pdu_size
+
+        if self._host is None:
+            raise ValueError("connect() requires host (pass to __init__ or connect)")
+
+        host = self._host
+        port = self._port
+        timeout = self._timeout
+        max_pdu_size = self._max_pdu_size
 
         try:
-            self._connection = iec61850.IedConnection_create()
+            if self._tls_config is not None:
+                self._native_tls_config = create_tls_configuration(self._tls_config)
+                self._connection = create_tls_connection(self._native_tls_config)
+            else:
+                self._connection = iec61850.IedConnection_create()
             if not self._connection:
                 raise ConnectionFailedError(host, port, "Failed to create connection")
 
             iec61850.IedConnection_setConnectTimeout(self._connection, timeout)
 
-            error = iec61850.IedConnection_connect(self._connection, host, port)
+            if max_pdu_size is not None:
+                mms_conn = iec61850.IedConnection_getMmsConnection(self._connection)
+                if not mms_conn:
+                    raise ConnectionFailedError(
+                        host, port, "IedConnection has no MmsConnection"
+                    )
+                iec61850.MmsConnection_setLocalDetail(mms_conn, max_pdu_size)
+                logger.debug(f"max PDU size set to {max_pdu_size} bytes")
+
+            # IedConnection_connect returns void in C; the SWIG typemap for
+            # IedClientError* turns that into a (None, error_code) tuple.
+            result = iec61850.IedConnection_connect(self._connection, host, port)
+            if isinstance(result, tuple):
+                error = result[1]
+            else:
+                error = result
 
             if error != iec61850.IED_ERROR_OK:
                 error_msg = self._get_error_string(error)
@@ -205,6 +291,25 @@ class MMSClient:
         finally:
             self._cleanup()
 
+    def set_request_timeout(self, timeout_ms: int) -> None:
+        """
+        Set the per-request MMS timeout.
+
+        Controls how long the client waits for a response before giving up
+        on an individual Read/Write/etc. libiec61850's default is 5000 ms
+        (CONFIG_MMS_CONNECTION_DEFAULT_TIMEOUT). Raise it for slow servers
+        that take >5 s to service a request; lower it for tighter SLAs.
+
+        Args:
+            timeout_ms: Timeout in milliseconds.
+
+        Raises:
+            NotConnectedError: If called before connect().
+        """
+        self._ensure_connected()
+        iec61850.IedConnection_setRequestTimeout(self._connection, timeout_ms)
+        logger.debug(f"request timeout set to {timeout_ms} ms")
+
     def _cleanup(self) -> None:
         """Clean up connection resources."""
         if self._connection:
@@ -213,6 +318,15 @@ class MMSClient:
             except Exception:
                 pass
         self._connection = None
+        # Order matters: the IedConnection may hold a reference to the native
+        # TLS configuration, so destroy the connection first, then the TLS
+        # config.
+        if self._native_tls_config is not None:
+            try:
+                destroy_tls_configuration(self._native_tls_config)
+            except Exception:
+                pass
+            self._native_tls_config = None
 
     def _ensure_connected(self) -> None:
         """Ensure connection is active."""
@@ -318,7 +432,14 @@ class MMSClient:
         self._ensure_connected()
 
         try:
-            result = iec61850.IedConnection_getLogicalNodeList(self._connection, device)
+            # libiec61850 exports this as getLogicalDeviceDirectory — the
+            # "device directory" IS the list of logical nodes under a given
+            # logical device. There is no function literally called
+            # getLogicalNodeList (an earlier draft of this wrapper assumed
+            # one existed; the mocked unit tests hid the typo).
+            result = iec61850.IedConnection_getLogicalDeviceDirectory(
+                self._connection, device
+            )
             value, error, ok = unpack_result(result)
 
             if not ok:
@@ -405,12 +526,17 @@ class MMSClient:
     # Variable Operations
     # =========================================================================
 
-    def read_value(self, reference: str) -> Any:
+    def read_value(self, reference: str, fc: Any = None) -> Any:
         """
         Read a variable value by reference.
 
         Args:
-            reference: Full object reference (e.g., "device/LN.DO.DA")
+            reference: Full object reference (e.g., "device/LN.DO.DA").
+                May include a trailing "[FC]" suffix (e.g. "LD0/MMXU1.TotW.mag.f[MX]")
+                which will be parsed and stripped.
+            fc: Functional constraint. Accepts an int (iec61850.IEC61850_FC_*),
+                a two-letter string ("ST", "MX", "CF", ...), or None.
+                If None and the reference has no [FC] suffix, defaults to ST.
 
         Returns:
             Python value (converted from MmsValue)
@@ -421,11 +547,22 @@ class MMSClient:
         """
         self._ensure_connected()
 
+        # Parse optional [FC] suffix in the reference.
+        if reference.endswith("]") and "[" in reference:
+            ref_body, suffix = reference.rsplit("[", 1)
+            suffix = suffix[:-1]
+            if suffix in _FC_NAMES:
+                reference = ref_body
+                if fc is None:
+                    fc = suffix
+
+        if fc is None:
+            fc = iec61850.IEC61850_FC_ST
+        elif isinstance(fc, str):
+            fc = getattr(iec61850, f"IEC61850_FC_{fc.upper()}", iec61850.IEC61850_FC_ST)
+
         mms_value = None
         try:
-            # Parse reference to get functional constraint
-            fc = iec61850.IEC61850_FC_ST  # Default to status
-
             result = iec61850.IedConnection_readObject(self._connection, reference, fc)
             value, error, ok = unpack_result(result)
 
@@ -445,6 +582,144 @@ class MMSClient:
             # Issue #5: Proper MmsValue cleanup
             if mms_value:
                 safe_mms_value_delete(mms_value)
+
+    def read_dataset(self, dataset_ref: str) -> List[Any]:
+        """
+        Read all values of a dataset in a single MMS request.
+
+        Much faster than calling read_value() per attribute: one request and
+        one response for the whole dataset, so the round-trip cost is paid
+        once instead of N times.
+
+        Implementation note: this calls the MMS-layer primitive
+        `MmsConnection_readNamedVariableListValues` rather than the
+        IedConnection-layer `readDataSetValues`. The latter takes a
+        `ClientDataSet` input parameter for which pyiec61850's SWIG wrapper
+        applies a NULL-safety typemap that rejects the "allocate a new one"
+        sentinel, so it is unusable from Python today.
+
+        Args:
+            dataset_ref: Dataset reference, either
+                "LDName/LNName.DataSetName" or "LDName/LNName$DataSetName".
+                Example: "simpleIOGenericIO/LLN0.Events".
+
+        Returns:
+            List of Python values, one per dataset member, in dataset order.
+            Uses `mms_value_to_python` semantics: structures become dicts,
+            arrays become lists, scalars become bool/int/float/str/bytes.
+
+        Raises:
+            NotConnectedError: If not connected
+            ReadError: If the read fails or the reference is malformed
+        """
+        self._ensure_connected()
+
+        slash = dataset_ref.find("/")
+        if slash <= 0 or slash == len(dataset_ref) - 1:
+            raise ReadError(
+                f"Invalid dataset reference '{dataset_ref}': "
+                "expected 'LDName/LNName.DataSetName' or "
+                "'LDName/LNName$DataSetName'"
+            )
+        domain_id = dataset_ref[:slash]
+        item_id = dataset_ref[slash + 1:].replace(".", "$")
+
+        mms_conn = iec61850.IedConnection_getMmsConnection(self._connection)
+        if not mms_conn:
+            raise ReadError("IedConnection has no MmsConnection")
+
+        # MmsConnection_readNamedVariableListValues expects a caller-owned
+        # MmsError* as its second arg — the %typemap(numinputs=0) in the
+        # SWIG bindings only intercepts `IedClientError* error`, not
+        # `MmsError* mmsError`, so we allocate one ourselves.
+        mms_error = iec61850.MmsError_create()
+        values = None
+        try:
+            values = iec61850.MmsConnection_readNamedVariableListValues(
+                mms_conn, mms_error, domain_id, item_id, False
+            )
+            error_code = iec61850.MmsError_getValue(mms_error)
+
+            if error_code != 0:
+                raise ReadError(
+                    f"Dataset read failed for {dataset_ref}: "
+                    f"MMS error {iec61850.MmsError_toString(mms_error)}"
+                )
+            if not values:
+                raise ReadError(f"Dataset read returned no data for {dataset_ref}")
+
+            size = iec61850.MmsValue_getArraySize(values)
+            out: List[Any] = []
+            for i in range(size):
+                member = iec61850.MmsValue_getElement(values, i)
+                out.append(mms_value_to_python(member))
+            return out
+
+        except NotConnectedError:
+            raise
+        except ReadError:
+            raise
+        except Exception as e:
+            raise ReadError(f"Failed to read dataset {dataset_ref}: {e}")
+        finally:
+            if values:
+                safe_mms_value_delete(values)
+            # Note: the SWIG wrapper exports the destructor as
+            # `MmsErrror_destroy` (triple-r typo in patches/iec61850.i).
+            iec61850.MmsErrror_destroy(mms_error)
+
+    def download_file(self, remote_path: str, local_path: str) -> None:
+        """
+        Download a file from the MMS server to the local filesystem.
+
+        Args:
+            remote_path: Path of the file on the server.
+            local_path: Local destination path. The caller is responsible for
+                ensuring the parent directory exists. On failure any
+                partial file is automatically cleaned up so the caller
+                gets either the complete file or nothing.
+
+        Raises:
+            NotConnectedError: If not connected.
+            FileTransferError: If the download fails.
+        """
+        self._ensure_connected()
+
+        mms_conn = iec61850.IedConnection_getMmsConnection(self._connection)
+        if not mms_conn:
+            raise MMSError("IedConnection has no MmsConnection")
+
+        import os
+
+        mms_error = iec61850.MmsError_create()
+        succeeded = False
+        try:
+            ok = iec61850.MmsConnection_downloadFile(
+                mms_conn, mms_error, remote_path, local_path
+            )
+            code = iec61850.MmsError_getValue(mms_error)
+            if not ok or code != 0:
+                # MmsError_toString takes the enum value (int), not the
+                # opaque wrapper returned by MmsError_create. Passing the
+                # wrapper raises TypeError from SWIG.
+                raise FileTransferError(
+                    f"Download of {remote_path!r} failed: "
+                    f"{iec61850.MmsError_toString(code)}"
+                )
+            succeeded = True
+        finally:
+            # Note: the SWIG wrapper exports the destructor as
+            # `MmsErrror_destroy` (triple-r typo in patches/iec61850.i).
+            iec61850.MmsErrror_destroy(mms_error)
+            # libiec61850 opens the local file before it checks whether
+            # the remote file exists, so a failed download leaves a 0-byte
+            # turd on disk. Clean it up so the caller gets either the
+            # full file or nothing — never a partial artefact.
+            if not succeeded and os.path.exists(local_path):
+                try:
+                    os.remove(local_path)
+                except OSError as e:
+                    logger.debug(f"could not unlink partial {local_path}: {e}")
 
     def _convert_mms_value(self, mms_value: Any) -> Any:
         """Convert MmsValue to Python type."""
@@ -538,7 +813,9 @@ class MMSClient:
     # =========================================================================
 
     def __enter__(self) -> "MMSClient":
-        """Context manager entry."""
+        """Context manager entry — auto-connects if host was given to __init__."""
+        if self._host is not None and not self.is_connected:
+            self.connect()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> bool:

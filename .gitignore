@@ -7,6 +7,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# SWIG-generated Python wrapper (produced at build time)
+pyiec61850/pyiec61850.py
+
 # Ignore build directories
 /build/
 /dist/
@@ -30,3 +33,4 @@ dist/*
 
 # Claude Code
 CLAUDE.md
+.claude/
