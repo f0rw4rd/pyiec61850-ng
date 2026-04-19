@@ -104,10 +104,16 @@ class IedServer:
     def _load_model(self, model_path: str) -> None:
         """Load the IEC 61850 data model from file."""
         try:
-            if hasattr(iec61850, "IedModel_createFromConfigFile"):
+            # The plain ConfigFileParser_createModelFromConfigFile binding
+            # expects a C FILE* (SWIG type "FileHandle"), not a Python
+            # path. Prefer the ..._Ex variant that takes a filename;
+            # it is the only form callable from Python with a str.
+            if hasattr(iec61850, "ConfigFileParser_createModelFromConfigFileEx"):
+                self._model = iec61850.ConfigFileParser_createModelFromConfigFileEx(
+                    model_path
+                )
+            elif hasattr(iec61850, "IedModel_createFromConfigFile"):
                 self._model = iec61850.IedModel_createFromConfigFile(model_path)
-            elif hasattr(iec61850, "ConfigFileParser_createModelFromConfigFile"):
-                self._model = iec61850.ConfigFileParser_createModelFromConfigFile(model_path)
             else:
                 raise ModelError("No model loading API available in bindings")
 
@@ -172,10 +178,23 @@ class IedServer:
                             self._config.enable_file_service,
                         )
 
-            # Create IED server
-            if self._ied_server_config and hasattr(iec61850, "IedServer_createWithConfig"):
+            # Create IED server.
+            #
+            # IedServer_createWithConfig's C signature allows NULL for the
+            # TLSConfiguration argument, but the SWIG typemap enforces
+            # non-null — passing None raises ValueError. So we can only
+            # use the withConfig path when TLS is actually configured.
+            # When it isn't, fall back to plain IedServer_create and note
+            # that per-connection ServerConfig settings (max_connections,
+            # edition, dynamic datasets, file service) will not be applied
+            # at create time.
+            if (
+                self._ied_server_config
+                and hasattr(iec61850, "IedServer_createWithConfig")
+                and getattr(self._config, "tls", None) is not None
+            ):
                 self._server = iec61850.IedServer_createWithConfig(
-                    self._model, None, self._ied_server_config
+                    self._model, self._config.tls, self._ied_server_config
                 )
             else:
                 self._server = iec61850.IedServer_create(self._model)
@@ -229,6 +248,21 @@ class IedServer:
         finally:
             self._cleanup()
 
+    def _resolve_attribute(self, reference: str):
+        """Look up a data attribute by reference and downcast it.
+
+        ``IedModel_getModelNodeByObjectReference`` returns a base
+        ``ModelNode*``; the ``IedServer_update*AttributeValue`` SWIG
+        wrappers require an explicit ``DataAttribute*``. The
+        ``toDataAttribute`` helper performs the cast; without it every
+        update would raise TypeError at the SWIG boundary.
+        """
+        node = iec61850.IedModel_getModelNodeByObjectReference(self._model, reference)
+        if not node:
+            return None
+        to_da = getattr(iec61850, "toDataAttribute", None)
+        return to_da(node) if to_da is not None else node
+
     def _cleanup(self) -> None:
         """Clean up all native resources."""
         self._control_subscribers.clear()
@@ -273,7 +307,7 @@ class IedServer:
             raise NotRunningError()
 
         try:
-            node = iec61850.IedModel_getModelNodeByObjectReference(self._model, reference)
+            node = self._resolve_attribute(reference)
             if not node:
                 raise UpdateError(reference, "node not found in model")
 
@@ -301,7 +335,7 @@ class IedServer:
             raise NotRunningError()
 
         try:
-            node = iec61850.IedModel_getModelNodeByObjectReference(self._model, reference)
+            node = self._resolve_attribute(reference)
             if not node:
                 raise UpdateError(reference, "node not found in model")
 
@@ -329,7 +363,7 @@ class IedServer:
             raise NotRunningError()
 
         try:
-            node = iec61850.IedModel_getModelNodeByObjectReference(self._model, reference)
+            node = self._resolve_attribute(reference)
             if not node:
                 raise UpdateError(reference, "node not found in model")
 
@@ -357,7 +391,7 @@ class IedServer:
             raise NotRunningError()
 
         try:
-            node = iec61850.IedModel_getModelNodeByObjectReference(self._model, reference)
+            node = self._resolve_attribute(reference)
             if not node:
                 raise UpdateError(reference, "node not found in model")
 
@@ -385,7 +419,7 @@ class IedServer:
             raise NotRunningError()
 
         try:
-            node = iec61850.IedModel_getModelNodeByObjectReference(self._model, reference)
+            node = self._resolve_attribute(reference)
             if not node:
                 raise UpdateError(reference, "node not found in model")
 
@@ -413,7 +447,7 @@ class IedServer:
             raise NotRunningError()
 
         try:
-            node = iec61850.IedModel_getModelNodeByObjectReference(self._model, reference)
+            node = self._resolve_attribute(reference)
             if not node:
                 raise UpdateError(reference, "node not found in model")
 

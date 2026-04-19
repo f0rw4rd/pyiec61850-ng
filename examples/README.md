@@ -136,11 +136,11 @@ python 04_file_transfer.py 192.168.1.100 "/COMTRADE/fault_001.cfg" "fault_001.cf
 - Mixing raw bindings with safe utilities
 
 ### [05_tase2_demo.py](05_tase2_demo.py)
-Demonstrates TASE.2/ICCP client functionality with a mock server.
+Demonstrates TASE.2/ICCP client functionality: connect, discover, read, control.
 
 **Usage:**
 ```bash
-python 05_tase2_demo.py
+python 05_tase2_demo.py <host>
 ```
 
 **Key concepts:**

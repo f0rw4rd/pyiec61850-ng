@@ -606,21 +606,16 @@ class MmsConnectionWrapper:
 
             # Create appropriate MmsValue based on Python type
             if isinstance(value, bool):
-                if hasattr(iec61850, "MmsValue_newBoolean"):
-                    return iec61850.MmsValue_newBoolean(value)
+                return iec61850.MmsValue_newBoolean(value)
             elif isinstance(value, int):
-                if hasattr(iec61850, "MmsValue_newIntegerFromInt32"):
-                    return iec61850.MmsValue_newIntegerFromInt32(value)
-                elif hasattr(iec61850, "MmsValue_newInteger"):
-                    return iec61850.MmsValue_newInteger(value)
+                return iec61850.MmsValue_newIntegerFromInt32(value)
             elif isinstance(value, float):
-                if hasattr(iec61850, "MmsValue_newFloat"):
-                    return iec61850.MmsValue_newFloat(value)
+                return iec61850.MmsValue_newFloat(value)
             elif isinstance(value, str):
-                if hasattr(iec61850, "MmsValue_newVisibleString"):
-                    return iec61850.MmsValue_newVisibleString(value)
+                return iec61850.MmsValue_newVisibleString(value)
 
-            # Return original value if no conversion available
+            # Unsupported Python type — pass through unchanged so the caller
+            # can decide what to do.
             return value
 
         except Exception as e:
@@ -662,7 +657,7 @@ class MmsConnectionWrapper:
             raise TASE2Error(f"Failed to write {domain}/{variable}: {e}")
         finally:
             # Clean up if we created the MmsValue
-            if created_value and hasattr(iec61850, "MmsValue_delete"):
+            if created_value:
                 try:
                     iec61850.MmsValue_delete(mms_value)
                 except Exception:
@@ -1035,14 +1030,9 @@ class MmsConnectionWrapper:
             calling: Max outstanding calls from client (calling)
             called: Max outstanding calls from server (called)
         """
-        if self._connection:
-            if hasattr(iec61850, "IedConnection_setMaxOutstandingCalls"):
-                iec61850.IedConnection_setMaxOutstandingCalls(self._connection, calling, called)
-                logger.debug(f"Set max outstanding calls: calling={calling}, called={called}")
-            else:
-                logger.warning("IedConnection_setMaxOutstandingCalls not available")
-        else:
-            logger.warning("Cannot set max outstanding calls: no connection object")
+        self._ensure_connected()
+        iec61850.IedConnection_setMaxOutstandingCalls(self._connection, calling, called)
+        logger.debug(f"Set max outstanding calls: calling={calling}, called={called}")
 
     def set_request_timeout(self, timeout_ms: int) -> None:
         """
@@ -1050,15 +1040,13 @@ class MmsConnectionWrapper:
 
         Args:
             timeout_ms: Timeout in milliseconds for individual MMS requests
+
+        Raises:
+            NotConnectedError: If called before connect().
         """
-        if self._connection:
-            if hasattr(iec61850, "IedConnection_setRequestTimeout"):
-                iec61850.IedConnection_setRequestTimeout(self._connection, timeout_ms)
-                logger.debug(f"Set request timeout: {timeout_ms}ms")
-            else:
-                logger.warning("IedConnection_setRequestTimeout not available")
-        else:
-            logger.warning("Cannot set request timeout: no connection object")
+        self._ensure_connected()
+        iec61850.IedConnection_setRequestTimeout(self._connection, timeout_ms)
+        logger.debug(f"Set request timeout: {timeout_ms}ms")
 
     # =========================================================================
     # InformationReport Handler (Phase 3)

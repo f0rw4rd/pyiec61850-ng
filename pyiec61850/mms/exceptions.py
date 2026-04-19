@@ -61,6 +61,11 @@ class WriteError(OperationError):
     pass
 
 
+class FileTransferError(MMSError):
+    """Failed to transfer a file over MMS."""
+    pass
+
+
 class NullPointerError(MMSError):
     """
     Attempted operation on NULL pointer.
