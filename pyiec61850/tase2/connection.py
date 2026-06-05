@@ -18,6 +18,7 @@ except ImportError:
     _HAS_IEC61850 = False
     iec61850 = None
 
+from .._libload import require_library
 from .constants import (
     DEFAULT_PORT,
     DEFAULT_TIMEOUT,
@@ -69,10 +70,7 @@ class MmsConnectionWrapper:
             local_ae_qualifier: Local Application Entity qualifier
             remote_ae_qualifier: Remote Application Entity qualifier
         """
-        if not _HAS_IEC61850:
-            raise LibraryNotFoundError(
-                "pyiec61850 library not found. Install with: pip install pyiec61850-ng"
-            )
+        require_library(LibraryNotFoundError)
 
         self._connection = None
         self._mms_connection = None

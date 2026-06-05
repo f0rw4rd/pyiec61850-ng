@@ -26,6 +26,7 @@ except ImportError:
     _HAS_IEC61850 = False
     iec61850 = None
 
+from .._libload import require_library
 from .exceptions import (
     AlreadyStartedError,
     ConfigurationError,
@@ -68,10 +69,7 @@ class SVPublisher:
             LibraryNotFoundError: If pyiec61850 is not available
             ConfigurationError: If interface is invalid
         """
-        if not _HAS_IEC61850:
-            raise LibraryNotFoundError(
-                "pyiec61850 library not found. Install with: pip install pyiec61850-ng"
-            )
+        require_library(LibraryNotFoundError)
 
         if not interface:
             raise ConfigurationError("interface", "must not be empty")

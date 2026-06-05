@@ -36,6 +36,8 @@ except ImportError:
     _HAS_IEC61850 = False
     iec61850 = None
 
+from .._libload import require_library
+
 # MMS type constants (fallback values if library not loaded)
 MMS_BOOLEAN = getattr(iec61850, "MMS_BOOLEAN", 0) if iec61850 else 0
 MMS_INTEGER = getattr(iec61850, "MMS_INTEGER", 1) if iec61850 else 1
@@ -66,7 +68,6 @@ from .utils import (
     safe_mms_value_delete,
     unpack_result,
 )
-
 
 _FC_NAMES = (
     "ST", "MX", "SP", "SV", "CF", "DC", "SG", "SE",
@@ -153,10 +154,7 @@ class MMSClient:
             max_pdu_size: Default max MMS PDU size in bytes, or None to
                 use libiec61850's default.
         """
-        if not _HAS_IEC61850:
-            raise LibraryNotFoundError(
-                "pyiec61850 library not found. Install with: pip install pyiec61850-ng"
-            )
+        require_library(LibraryNotFoundError)
 
         self._connection = None
         self._host: Optional[str] = host
