@@ -28,6 +28,7 @@ except ImportError:
     _HAS_IEC61850 = False
     iec61850 = None
 
+from .._libload import require_library
 from .exceptions import (
     LibraryNotFoundError,
     MMSError,
@@ -101,10 +102,7 @@ class GoCBClient:
     """
 
     def __init__(self, mms_client):
-        if not _HAS_IEC61850:
-            raise LibraryNotFoundError(
-                "pyiec61850 library not found. Install with: pip install pyiec61850-ng"
-            )
+        require_library(LibraryNotFoundError)
         self._mms_client = mms_client
 
     def _get_connection(self):

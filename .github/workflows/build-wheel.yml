@@ -51,7 +51,7 @@ jobs:
           echo "package_version=${PACKAGE_VERSION}" >> $GITHUB_OUTPUT
           echo "Building libiec61850 ${LIBIEC61850_VERSION} as package version ${PACKAGE_VERSION}"
 
-      - name: Build universal wheel in Docker
+      - name: Build manylinux wheels (one per CPython) in Docker
         run: |
           docker build \
             -f Dockerfile \
@@ -103,9 +103,17 @@ jobs:
           name: wheel-universal
           path: ./dist
 
+      - name: Audit wheel tags/ABI/RPATH
+        run: |
+          # Fail if any wheel regresses to a generic tag / missing ABI suffix /
+          # leftover build RPATH / unvendored libiec61850 (issue #15 guard).
+          python scripts/check_wheel.py dist/*.whl
+
       - name: Install and test
         run: |
-          pip install ./dist/*.whl pytest pytest-timeout
+          # Let pip select the wheel matching this interpreter (one per cpXY).
+          pip install pyiec61850-ng --no-index --find-links ./dist
+          pip install pytest pytest-timeout
           # Copy test to /tmp to avoid local pyiec61850/ shadowing the installed wheel
           cp tests/test_import.py /tmp/test_import.py
           cd /tmp
@@ -308,6 +316,10 @@ jobs:
           # Copy SWIG build outputs
           Copy-Item "$pydir/_pyiec61850.pyd" -Destination $pkgdir/
           Copy-Item "$pydir/pyiec61850.py" -Destination $pkgdir/
+
+          # Copy top-level pure-Python modules from the repo (e.g. _libload.py,
+          # imported by every submodule's require_library guard).
+          Copy-Item "pyiec61850/_libload.py" -Destination $pkgdir/
 
           # Copy DLLs the .pyd may need at runtime
           foreach ($pattern in @("iec61850.dll", "libiec61850.dll")) {
@@ -627,16 +639,11 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - name: Fix platform tag for PyPI
+      - name: List wheels
         run: |
-          # Rename to manylinux for PyPI compatibility (Linux wheel only)
-          for whl in dist/*linux_x86_64.whl; do
-            [ -f "$whl" ] || continue
-            new=$(echo "$whl" | sed 's/linux_x86_64/manylinux1_x86_64/')
-            mv "$whl" "$new"
-            echo "Renamed: $(basename "$whl") -> $(basename "$new")"
-          done
-          # Windows win_amd64 wheels are already PyPI-compatible
+          # Linux wheels are already correctly tagged as manylinux_2_28 by
+          # auditwheel; Windows win_amd64 wheels are PyPI-compatible as built.
+          # No tag rewriting (the old manylinux1 rename was dishonest, issue #15).
           ls -la dist/
 
       - name: Publish to PyPI

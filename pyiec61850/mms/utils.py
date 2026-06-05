@@ -31,6 +31,7 @@ except ImportError:
     _HAS_IEC61850 = False
     iec61850 = None
 
+from .._libload import require_library
 from .exceptions import (
     LibraryNotFoundError,
 )
@@ -40,10 +41,7 @@ logger = logging.getLogger(__name__)
 
 def _ensure_library() -> None:
     """Ensure pyiec61850 is available."""
-    if not _HAS_IEC61850:
-        raise LibraryNotFoundError(
-            "pyiec61850 library not found. Install with: pip install pyiec61850-ng"
-        )
+    require_library(LibraryNotFoundError)
 
 
 # =============================================================================

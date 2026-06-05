@@ -13,33 +13,13 @@ Submodules:
     - server: IEC 61850 server
 """
 
-import ctypes as _ctypes
-import os as _os
-import sys as _sys
+# Load the bundled libiec61850 shared library + SWIG extension. The loader
+# captures any failure (wrong glibc / CPython ABI / missing file) instead of
+# swallowing it, so LibraryNotFoundError can report the real cause.
+from . import _libload  # noqa: F401  (runs the native load on import)
 
-# Load the bundled libiec61850 shared library before importing SWIG bindings.
-# When installed from a wheel, the .so/.dll lives inside the package directory.
-_package_dir = _os.path.dirname(_os.path.abspath(__file__))
-
-if _sys.platform == "win32":
-    if hasattr(_os, "add_dll_directory"):
-        _os.add_dll_directory(_package_dir)
-    _os.environ["PATH"] = _package_dir + _os.pathsep + _os.environ.get("PATH", "")
-    for _f in sorted(_os.listdir(_package_dir)):
-        if _f.endswith(".dll") and "iec61850" in _f.lower():
-            try:
-                _ctypes.WinDLL(_os.path.join(_package_dir, _f), winmode=0)
-                break
-            except Exception:
-                pass
-else:
-    for _f in _os.listdir(_package_dir):
-        if _f.startswith("libiec61850.so"):
-            try:
-                _ctypes.CDLL(_os.path.join(_package_dir, _f))
-                break
-            except Exception:
-                pass
+#: The native-lib load error, if any (None on success). Kept for inspection.
+_LIB_LOAD_ERROR = _libload.LIB_LOAD_ERROR or _libload.EXT_IMPORT_ERROR
 
 # Expose submodules (use try/except so the package is importable even if
 # individual submodules have unmet dependencies, e.g. missing SWIG extension)

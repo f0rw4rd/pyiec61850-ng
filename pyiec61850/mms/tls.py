@@ -31,6 +31,7 @@ except ImportError:
     _HAS_IEC61850 = False
     iec61850 = None
 
+from .._libload import require_library
 from .exceptions import (
     LibraryNotFoundError,
     MMSError,
@@ -102,10 +103,7 @@ def create_tls_configuration(config: TLSConfig) -> Any:
         TLSConfigError: If configuration is invalid
         TLSError: If TLS configuration creation fails
     """
-    if not _HAS_IEC61850:
-        raise LibraryNotFoundError(
-            "pyiec61850 library not found. Install with: pip install pyiec61850-ng"
-        )
+    require_library(LibraryNotFoundError)
 
     if not hasattr(iec61850, "TLSConfiguration_create"):
         raise TLSError("TLS not available in SWIG bindings (requires libiec61850 with TLS)")
@@ -173,8 +171,7 @@ def create_tls_connection(tls_config: Any) -> Any:
     Raises:
         TLSError: If connection creation fails
     """
-    if not _HAS_IEC61850:
-        raise LibraryNotFoundError()
+    require_library(LibraryNotFoundError)
 
     if not hasattr(iec61850, "IedConnection_createWithTlsSupport"):
         raise TLSError(
