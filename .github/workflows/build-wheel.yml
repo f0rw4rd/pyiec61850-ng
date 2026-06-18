@@ -73,7 +73,7 @@ jobs:
           ls -la
 
       - name: Upload wheel artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
         with:
           name: wheel-universal
           path: ./dist/*.whl
@@ -98,7 +98,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Download wheel
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           name: wheel-universal
           path: ./dist
@@ -496,7 +496,7 @@ jobs:
           Pop-Location
 
       - name: Upload wheel
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
         with:
           name: wheel-windows-${{ matrix.python-version }}
           path: wheel-staging/dist/*.whl
@@ -521,7 +521,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Download wheel
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           name: wheel-windows-${{ matrix.python-version }}
           path: ./dist
@@ -583,7 +583,7 @@ jobs:
           echo "libiec61850_version=${LIBIEC61850_VERSION}" >> $GITHUB_OUTPUT
 
       - name: Download all wheels
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           pattern: wheel-*
           path: dist
@@ -633,7 +633,7 @@ jobs:
 
     steps:
       - name: Download all wheels
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           pattern: wheel-*
           path: dist
