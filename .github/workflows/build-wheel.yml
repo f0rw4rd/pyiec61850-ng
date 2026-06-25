@@ -625,8 +625,15 @@ jobs:
     name: Publish to PyPI
     needs: [build-wheel, test-wheel, build-windows, test-windows]
     runs-on: ubuntu-latest
+    # Approval gate: the 'pypi' environment must have required reviewers
+    # configured in GitHub settings, so a tag push pauses here for manual
+    # approval instead of auto-publishing.
+    environment:
+      name: pypi
+      url: https://pypi.org/project/pyiec61850-ng/
     permissions:
       contents: read
+      id-token: write   # OIDC trusted publishing — no long-lived API token needed
     if: |
       (github.event_name == 'push' && github.ref_type == 'tag') ||
       (github.event.inputs.publish_pypi == 'true')
@@ -647,9 +654,10 @@ jobs:
           ls -la dist/
 
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e  # release/v1
+        # OIDC trusted publishing — no token. Requires a PyPI trusted publisher
+        # for owner f0rw4rd, repo pyiec61850-ng, workflow build-wheel.yml,
+        # environment pypi.
+        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e  # v1.13.0
         with:
-          user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
           packages-dir: dist/
           skip-existing: true
