@@ -31,7 +31,6 @@ from typing import Optional
 
 from pyiec61850.mms import MMSClient
 
-
 INTEGRATION_ENV = "PYIEC61850_INTEGRATION"
 TESTSERVER_OVERRIDE_ENV = "PYIEC61850_TESTSERVER"  # "host:port" to skip container mgmt
 IMAGE_TAG = "local/iec61850-testserver"
@@ -62,6 +61,10 @@ REF_ST_BOOL = f"{LD_NAME}/GGIO1.Mod.stVal"
 # Writable boolean control point (SPCSO1).  The basic_io model exposes
 # SPCSO1–SPCSO4 under GGIO1, each with a boolean stVal writable via CO.
 REF_SPCSO1_STVAL = f"{LD_NAME}/GGIO1.SPCSO1.stVal"
+
+# The controllable value of the same point lives under the CO functional
+# constraint at Oper.ctlVal — the proper target for write_value(fc="CO").
+REF_SPCSO1_CTLVAL = f"{LD_NAME}/GGIO1.SPCSO1.Oper.ctlVal"
 
 
 def _which_runtime() -> Optional[str]:
@@ -163,6 +166,13 @@ class IntegrationServerCase(unittest.TestCase):
 
     # Subclasses may override to exercise different servers.
     image: str = IMAGE_TAG
+    container_name: str = CONTAINER_NAME
+    # Optional container entrypoint override (None -> image default = basic_io).
+    server_entrypoint: Optional[str] = None
+    # Whether this case honours the PYIEC61850_TESTSERVER override env. Cases
+    # that need a specific (non-basic_io) server set this False so they always
+    # manage their own container.
+    use_testserver_override: bool = True
 
     _build_context: str = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
@@ -175,7 +185,7 @@ class IntegrationServerCase(unittest.TestCase):
         if reason:
             raise unittest.SkipTest(reason)
 
-        override = _parse_override()
+        override = _parse_override() if cls.use_testserver_override else None
         if override is not None:
             cls.host, cls.port = override
             cls._own_container = False
@@ -199,7 +209,7 @@ class IntegrationServerCase(unittest.TestCase):
                 deadline=time.monotonic() + STARTUP_TIMEOUT_SEC,
             )
         except TimeoutError:
-            logs = _run(cls.runtime, "logs", CONTAINER_NAME, check=False).stdout
+            logs = _run(cls.runtime, "logs", cls.container_name, check=False).stdout
             cls._stop_container()
             raise unittest.SkipTest(
                 f"test server did not accept connections in time. Logs:\n{logs}"
@@ -231,10 +241,12 @@ class IntegrationServerCase(unittest.TestCase):
     @classmethod
     def _ensure_image_built(cls) -> None:
         assert cls.runtime is not None
+        # `image inspect` works on both docker and podman ("image exists" is
+        # podman-only and errors on docker, forcing a needless rebuild).
         images = _run(
             cls.runtime,
             "image",
-            "exists",
+            "inspect",
             cls.image,
             check=False,
         )
@@ -255,19 +267,48 @@ class IntegrationServerCase(unittest.TestCase):
     def _start_container(cls) -> None:
         assert cls.runtime is not None
         # Remove any leftover container from a previous aborted run.
-        _run(cls.runtime, "rm", "-f", CONTAINER_NAME, check=False)
-        _run(
-            cls.runtime,
+        _run(cls.runtime, "rm", "-f", cls.container_name, check=False)
+        args = [
             "run",
             "-d",
             "--name",
-            CONTAINER_NAME,
+            cls.container_name,
             "-p",
-            f"{HOST_PORT}:{CONTAINER_PORT}",
-            cls.image,
-        )
+            f"{cls.port}:{CONTAINER_PORT}",
+        ]
+        if cls.server_entrypoint:
+            args += ["--entrypoint", cls.server_entrypoint]
+        args.append(cls.image)
+        _run(cls.runtime, *args)
 
     @classmethod
     def _stop_container(cls) -> None:
         assert cls.runtime is not None
-        _run(cls.runtime, "rm", "-f", CONTAINER_NAME, check=False)
+        _run(cls.runtime, "rm", "-f", cls.container_name, check=False)
+
+
+# ---------------------------------------------------------------------------
+# Control server (libiec61850 server_example_control) — a separate binary in
+# the same image, exercised by the ControlClient integration tests.
+# ---------------------------------------------------------------------------
+CONTROL_HOST_PORT = 11107
+# server_example_control exposes GGIO1.SPCSO1..4 controllable points
+# (control model "direct-with-normal-security").
+CONTROL_LD = "simpleIOGenericIO"
+REF_SPCSO1 = f"{CONTROL_LD}/GGIO1.SPCSO1"
+REF_SPCSO2 = f"{CONTROL_LD}/GGIO1.SPCSO2"
+
+
+class ControlServerCase(IntegrationServerCase):
+    """Brings up libiec61850's ``server_example_control`` once per class.
+
+    Same image as the basic_io fixture, but launched with the control-server
+    entrypoint and its own name/port, so it can run alongside the basic_io
+    container. Always manages its own container (ignores PYIEC61850_TESTSERVER,
+    which points at the basic_io server).
+    """
+
+    container_name = "pyiec61850-integration-control"
+    port = CONTROL_HOST_PORT
+    server_entrypoint = "/usr/local/bin/server_example_control"
+    use_testserver_override = False

@@ -306,8 +306,13 @@ class TestMMSClient(unittest.TestCase):
                 self.assertFalse(client.is_connected)
 
     def test_client_raises_without_library(self):
-        """Client should raise LibraryNotFoundError if library missing."""
-        with patch("pyiec61850.mms.client._HAS_IEC61850", False):
+        """Client should raise LibraryNotFoundError if library missing.
+
+        Construction is gated by require_library() -> have_library(); patch
+        that (not the stale _HAS_IEC61850 flag) so the test asserts the real
+        behaviour whether or not the native extension happens to be installed.
+        """
+        with patch("pyiec61850._libload.have_library", return_value=False):
             from pyiec61850.mms import LibraryNotFoundError, MMSClient
 
             with self.assertRaises(LibraryNotFoundError):
@@ -605,7 +610,10 @@ class TestMMSClientCrashPaths(unittest.TestCase):
                         mock_iec.IEC61850_FC_ST = 0
                         mock_mms_val = Mock()
                         mock_iec.IedConnection_readObject.return_value = (mock_mms_val, 0)
-                        mock_iec.MmsValue_getType.return_value = 0
+                        # read_value now converts via utils.mms_value_to_python,
+                        # which resolves the MMS type via getattr(iec61850, ...).
+                        mock_iec.MMS_BOOLEAN = 2
+                        mock_iec.MmsValue_getType.return_value = 2
                         mock_iec.MmsValue_getBoolean.return_value = True
 
                         from pyiec61850.mms import MMSClient
@@ -613,8 +621,7 @@ class TestMMSClientCrashPaths(unittest.TestCase):
                         client = MMSClient()
                         client.connect("host", 102)
 
-                        with patch("pyiec61850.mms.client.MMS_BOOLEAN", 0):
-                            result = client.read_value("myLD/LN.DO.DA")
+                        result = client.read_value("myLD/LN.DO.DA")
 
                         self.assertTrue(result)
 
@@ -661,7 +668,8 @@ class TestMMSClientCrashPaths(unittest.TestCase):
                         mock_iec.IED_ERROR_OK = 0
                         mock_iec.IEC61850_FC_ST = 0
                         mock_iec.MmsValue_newBoolean.return_value = Mock()
-                        mock_iec.IedConnection_writeObject.return_value = 0
+                        # Faithful: writeObject returns (value, error), not a scalar.
+                        mock_iec.IedConnection_writeObject.return_value = (None, 0)
 
                         from pyiec61850.mms import MMSClient
 
@@ -683,7 +691,8 @@ class TestMMSClientCrashPaths(unittest.TestCase):
                         mock_iec.IED_ERROR_OK = 0
                         mock_iec.IEC61850_FC_ST = 0
                         mock_iec.MmsValue_newBoolean.return_value = Mock()
-                        mock_iec.IedConnection_writeObject.return_value = 5
+                        # Faithful: writeObject returns (value, error) — error code 5.
+                        mock_iec.IedConnection_writeObject.return_value = (None, 5)
 
                         from pyiec61850.mms import MMSClient
                         from pyiec61850.mms.exceptions import WriteError
@@ -815,7 +824,8 @@ class TestMMSClientCrashPaths(unittest.TestCase):
                         mock_identity.vendorName = "TestVendor"
                         mock_identity.modelName = "TestModel"
                         mock_identity.revision = "1.0"
-                        mock_iec.IedConnection_identify.return_value = (mock_identity, 0)
+                        mock_iec.IedConnection_getMmsConnection.return_value = Mock()
+                        mock_iec.MmsConnection_identify.return_value = mock_identity
 
                         from pyiec61850.mms import MMSClient
 
@@ -836,7 +846,8 @@ class TestMMSClientCrashPaths(unittest.TestCase):
                         mock_iec.IedConnection_create.return_value = mock_conn
                         mock_iec.IedConnection_connect.return_value = 0
                         mock_iec.IED_ERROR_OK = 0
-                        mock_iec.IedConnection_identify.return_value = (None, 0)
+                        mock_iec.IedConnection_getMmsConnection.return_value = Mock()
+                        mock_iec.MmsConnection_identify.return_value = None
 
                         from pyiec61850.mms import MMSClient
 

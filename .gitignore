@@ -10,6 +10,9 @@ __pycache__/
 # SWIG-generated Python wrapper (produced at build time)
 pyiec61850/pyiec61850.py
 
+# auditwheel-relocated native lib dir (dropped in from a built wheel for local testing)
+*.libs/
+
 # Ignore build directories
 /build/
 /dist/
@@ -20,6 +23,16 @@ pyiec61850/pyiec61850.py
 
 dist/*
 
+
+# Ignore virtualenvs
+.venv/
+venv/
+
+# Test / coverage artifacts
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
 
 # Ignore IDE files
 .idea/

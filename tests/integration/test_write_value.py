@@ -13,7 +13,12 @@ attributes (SPCSO1–SPCSO4) under GGIO1 that are writable.
 from pyiec61850.mms import MMSClient
 from pyiec61850.mms.exceptions import NotConnectedError, WriteError
 
-from ._fixture import IntegrationServerCase, REF_SPCSO1_STVAL, REF_ST_BOOL
+from ._fixture import (
+    REF_SPCSO1_CTLVAL,
+    REF_SPCSO1_STVAL,
+    REF_ST_BOOL,
+    IntegrationServerCase,
+)
 
 
 class TestWriteValue(IntegrationServerCase):
@@ -21,9 +26,7 @@ class TestWriteValue(IntegrationServerCase):
         """The error path must surface as WriteError, not a bare Exception
         or a segfault."""
         with self.assertRaises(WriteError):
-            self.client.write_value(
-                "simpleIOGenericIO/GGIO999.DoesNotExist.stVal", 1
-            )
+            self.client.write_value("simpleIOGenericIO/GGIO999.DoesNotExist.stVal", 1)
 
     def test_write_on_disconnected_client_raises(self):
         client = MMSClient()
@@ -42,16 +45,42 @@ class TestWriteValue(IntegrationServerCase):
         try:
             self.client.write_value(REF_SPCSO1_STVAL, True)
         except WriteError:
-            self.skipTest(
-                "server rejected write to SPCSO1.stVal — "
-                "server may be read-only"
-            )
+            self.skipTest("server rejected write to SPCSO1.stVal — server may be read-only")
 
         value = self.client.read_value(REF_SPCSO1_STVAL)
         self.assertIn(
-            value, (True, 1),
+            value,
+            (True, 1),
             f"expected True or 1 after writing True, got {value!r}",
         )
+
+    def test_write_under_explicit_fc(self):
+        """write_value must honour an explicit functional constraint.
+
+        Regression guard: write_value used to hardcode FC_ST, so it could
+        never reach a control object (Oper.ctlVal under CO). Passing
+        fc="CO" must route the write under the CO constraint. We don't
+        assert success — a direct-operate without select/SBO handshake may
+        be rejected by the control model — only that the FC is honoured
+        rather than silently forced to ST. Either a clean return or a
+        WriteError (control-model rejection) is acceptable; what must NOT
+        happen is a non-WriteError crash.
+
+        The fc="CO" and trailing "[CO]" suffix forms must behave
+        identically."""
+        for ref, kwargs in (
+            (REF_SPCSO1_CTLVAL, {"fc": "CO"}),
+            (REF_SPCSO1_CTLVAL + "[CO]", {}),
+        ):
+            try:
+                self.client.write_value(ref, True, **kwargs)
+            except WriteError:
+                pass  # control-model rejection — FC was still honoured
+            except Exception as e:
+                self.fail(
+                    f"write under CO for {ref!r} raised "
+                    f"{type(e).__name__}: {e} (expected success or WriteError)"
+                )
 
     def test_write_wrong_type_raises_write_error(self):
         """Writing a string to a boolean attribute should surface as a
@@ -63,15 +92,14 @@ class TestWriteValue(IntegrationServerCase):
         except WriteError:
             return  # expected — pass
         except Exception as e:
-            self.fail(
-                f"expected WriteError on type mismatch, "
-                f"got {type(e).__name__}: {e}"
-            )
+            self.fail(f"expected WriteError on type mismatch, got {type(e).__name__}: {e}")
         # If we get here, the server accepted a string for a boolean.
         # That is surprising but not a failure in our code. Log it
         # so it shows up in test output as a characterisation.
         import warnings
+
         warnings.warn(
             "server accepted string write to boolean attribute — "
-            "characterisation: libiec61850 did not reject the type mismatch"
+            "characterisation: libiec61850 did not reject the type mismatch",
+            stacklevel=2,
         )

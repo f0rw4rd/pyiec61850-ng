@@ -80,7 +80,7 @@ class TestIedServer(unittest.TestCase):
     """Test IedServer class."""
 
     def test_raises_without_library(self):
-        with patch("pyiec61850.server.server._HAS_IEC61850", False):
+        with patch("pyiec61850._libload.have_library", return_value=False):
             from pyiec61850.server import IedServer, LibraryNotFoundError
 
             with self.assertRaises(LibraryNotFoundError):
@@ -99,7 +99,9 @@ class TestIedServer(unittest.TestCase):
         with patch("pyiec61850.server.server._HAS_IEC61850", True):
             with patch("pyiec61850.server.server.iec61850") as mock_iec:
                 mock_model = Mock()
-                mock_iec.IedModel_createFromConfigFile.return_value = mock_model
+                # _load_model prefers the ...Ex variant (the only model loader
+                # callable from Python with a str path).
+                mock_iec.ConfigFileParser_createModelFromConfigFileEx.return_value = mock_model
 
                 from pyiec61850.server import IedServer
 
@@ -109,7 +111,7 @@ class TestIedServer(unittest.TestCase):
     def test_creation_with_bad_model(self):
         with patch("pyiec61850.server.server._HAS_IEC61850", True):
             with patch("pyiec61850.server.server.iec61850") as mock_iec:
-                mock_iec.IedModel_createFromConfigFile.return_value = None
+                mock_iec.ConfigFileParser_createModelFromConfigFileEx.return_value = None
 
                 from pyiec61850.server import IedServer, ModelError
 
@@ -120,10 +122,11 @@ class TestIedServer(unittest.TestCase):
         with patch("pyiec61850.server.server._HAS_IEC61850", True):
             with patch("pyiec61850.server.server.iec61850") as mock_iec:
                 mock_model = Mock()
-                mock_iec.IedModel_createFromConfigFile.return_value = mock_model
+                mock_iec.ConfigFileParser_createModelFromConfigFileEx.return_value = mock_model
                 mock_server = Mock()
-                # MagicMock has IedServerConfig_create, so createWithConfig path is taken
-                mock_iec.IedServer_createWithConfig.return_value = mock_server
+                # Default ServerConfig has tls=None, so start() uses the plain
+                # IedServer_create path (createWithConfig requires a TLS config).
+                mock_iec.IedServer_create.return_value = mock_server
                 mock_iec.IedServer_isRunning.return_value = True
 
                 from pyiec61850.server import IedServer
@@ -324,8 +327,8 @@ class TestIedServerCrashPaths(unittest.TestCase):
         """_load_model with no loading API must raise ModelError."""
         with patch("pyiec61850.server.server._HAS_IEC61850", True):
             with patch("pyiec61850.server.server.iec61850") as mock_iec:
+                del mock_iec.ConfigFileParser_createModelFromConfigFileEx
                 del mock_iec.IedModel_createFromConfigFile
-                del mock_iec.ConfigFileParser_createModelFromConfigFile
 
                 from pyiec61850.server import IedServer, ModelError
 
@@ -336,7 +339,9 @@ class TestIedServerCrashPaths(unittest.TestCase):
         """_load_model must wrap unexpected exceptions in ModelError."""
         with patch("pyiec61850.server.server._HAS_IEC61850", True):
             with patch("pyiec61850.server.server.iec61850") as mock_iec:
-                mock_iec.IedModel_createFromConfigFile.side_effect = RuntimeError("disk fail")
+                mock_iec.ConfigFileParser_createModelFromConfigFileEx.side_effect = RuntimeError(
+                    "disk fail"
+                )
 
                 from pyiec61850.server import IedServer, ModelError
 

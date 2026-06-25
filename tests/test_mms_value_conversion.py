@@ -280,7 +280,7 @@ class TestMmsValueToPython(unittest.TestCase):
         from pyiec61850.mms.exceptions import LibraryNotFoundError
         from pyiec61850.mms.utils import mms_value_to_python
 
-        with patch("pyiec61850.mms.utils._HAS_IEC61850", False):
+        with patch("pyiec61850._libload.have_library", return_value=False):
             with self.assertRaises(LibraryNotFoundError):
                 mms_value_to_python(Mock())
 
@@ -370,7 +370,7 @@ class TestPythonToMmsValue(unittest.TestCase):
         from pyiec61850.mms.exceptions import LibraryNotFoundError
         from pyiec61850.mms.utils import python_to_mms_value
 
-        with patch("pyiec61850.mms.utils._HAS_IEC61850", False):
+        with patch("pyiec61850._libload.have_library", return_value=False):
             with self.assertRaises(LibraryNotFoundError):
                 python_to_mms_value(42)
 

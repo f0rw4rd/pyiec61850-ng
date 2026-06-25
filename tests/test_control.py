@@ -78,7 +78,7 @@ class TestControlClient(unittest.TestCase):
         return client
 
     def test_raises_without_library(self):
-        with patch("pyiec61850.mms.control._HAS_IEC61850", False):
+        with patch("pyiec61850._libload.have_library", return_value=False):
             from pyiec61850.mms.control import ControlClient
             from pyiec61850.mms.exceptions import LibraryNotFoundError
 

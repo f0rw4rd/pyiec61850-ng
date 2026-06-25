@@ -92,7 +92,7 @@ class TestGoCBClient(unittest.TestCase):
         from pyiec61850.mms.exceptions import LibraryNotFoundError
         from pyiec61850.mms.gocb import GoCBClient
 
-        with patch("pyiec61850.mms.gocb._HAS_IEC61850", False):
+        with patch("pyiec61850._libload.have_library", return_value=False):
             with self.assertRaises(LibraryNotFoundError):
                 GoCBClient(Mock())
 

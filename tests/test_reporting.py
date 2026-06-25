@@ -95,7 +95,7 @@ class TestReportClient(unittest.TestCase):
         return client
 
     def test_raises_without_library(self):
-        with patch("pyiec61850.mms.reporting._HAS_IEC61850", False):
+        with patch("pyiec61850._libload.have_library", return_value=False):
             from pyiec61850.mms.exceptions import LibraryNotFoundError
             from pyiec61850.mms.reporting import ReportClient
 

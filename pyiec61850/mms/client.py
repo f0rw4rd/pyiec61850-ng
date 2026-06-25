@@ -64,15 +64,32 @@ from .tls import (
 from .utils import (
     IdentityGuard,
     LinkedListGuard,
+    MmsErrorGuard,
     mms_value_to_python,
     safe_mms_value_delete,
     unpack_result,
 )
 
 _FC_NAMES = (
-    "ST", "MX", "SP", "SV", "CF", "DC", "SG", "SE",
-    "SR", "OR", "BL", "EX", "CO", "US", "MS", "RP",
-    "BR", "LG", "GO",
+    "ST",
+    "MX",
+    "SP",
+    "SV",
+    "CF",
+    "DC",
+    "SG",
+    "SE",
+    "SR",
+    "OR",
+    "BL",
+    "EX",
+    "CO",
+    "US",
+    "MS",
+    "RP",
+    "BR",
+    "LG",
+    "GO",
 )
 
 logger = logging.getLogger(__name__)
@@ -247,9 +264,7 @@ class MMSClient:
             if max_pdu_size is not None:
                 mms_conn = iec61850.IedConnection_getMmsConnection(self._connection)
                 if not mms_conn:
-                    raise ConnectionFailedError(
-                        host, port, "IedConnection has no MmsConnection"
-                    )
+                    raise ConnectionFailedError(host, port, "IedConnection has no MmsConnection")
                 iec61850.MmsConnection_setLocalDetail(mms_conn, max_pdu_size)
                 logger.debug(f"max PDU size set to {max_pdu_size} bytes")
 
@@ -357,19 +372,25 @@ class MMSClient:
         self._ensure_connected()
 
         try:
-            result = iec61850.IedConnection_identify(self._connection)
-            value, error, ok = unpack_result(result)
+            # IedConnection_identify does not exist in this binding; use the
+            # MMS-layer Identify service via the underlying MmsConnection.
+            mms_conn = iec61850.IedConnection_getMmsConnection(self._connection)
+            if not mms_conn:
+                return ServerIdentity()
 
-            if ok and value:
-                # Use IdentityGuard for automatic cleanup (Issue #4)
-                with IdentityGuard(value):
+            with MmsErrorGuard(iec61850.MmsError_create()) as guard:
+                identity = iec61850.MmsConnection_identify(mms_conn, guard.error)
+                if identity is None:
+                    return ServerIdentity()
+
+                # Use IdentityGuard for automatic cleanup (Issue #4).
+                # Identity fields arrive already decoded as Python str.
+                with IdentityGuard(identity):
                     return ServerIdentity(
-                        vendor=getattr(value, "vendorName", None),
-                        model=getattr(value, "modelName", None),
-                        revision=getattr(value, "revision", None),
+                        vendor=getattr(identity, "vendorName", None),
+                        model=getattr(identity, "modelName", None),
+                        revision=getattr(identity, "revision", None),
                     )
-
-            return ServerIdentity()
 
         except NotConnectedError:
             raise
@@ -435,9 +456,7 @@ class MMSClient:
             # logical device. There is no function literally called
             # getLogicalNodeList (an earlier draft of this wrapper assumed
             # one existed; the mocked unit tests hid the typo).
-            result = iec61850.IedConnection_getLogicalDeviceDirectory(
-                self._connection, device
-            )
+            result = iec61850.IedConnection_getLogicalDeviceDirectory(self._connection, device)
             value, error, ok = unpack_result(result)
 
             if not ok:
@@ -568,7 +587,13 @@ class MMSClient:
                 raise ReadError(f"Read failed: {self._get_error_string(error)}")
 
             mms_value = value
-            return self._convert_mms_value(mms_value)
+            # Use the full converter (Issue: _convert_mms_value was lossy —
+            # it returned a "<MmsValue type=N>" placeholder for structures and
+            # for MMS_DATA_ACCESS_ERROR, so callers branching on `is None` to
+            # detect a failed read got a truthy placeholder instead).
+            # mms_value_to_python maps DATA_ACCESS_ERROR -> None and structures
+            # -> dict, matching read_dataset().
+            return mms_value_to_python(mms_value)
 
         except NotConnectedError:
             raise
@@ -620,7 +645,7 @@ class MMSClient:
                 "'LDName/LNName$DataSetName'"
             )
         domain_id = dataset_ref[:slash]
-        item_id = dataset_ref[slash + 1:].replace(".", "$")
+        item_id = dataset_ref[slash + 1 :].replace(".", "$")
 
         mms_conn = iec61850.IedConnection_getMmsConnection(self._connection)
         if not mms_conn:
@@ -692,17 +717,14 @@ class MMSClient:
         mms_error = iec61850.MmsError_create()
         succeeded = False
         try:
-            ok = iec61850.MmsConnection_downloadFile(
-                mms_conn, mms_error, remote_path, local_path
-            )
+            ok = iec61850.MmsConnection_downloadFile(mms_conn, mms_error, remote_path, local_path)
             code = iec61850.MmsError_getValue(mms_error)
             if not ok or code != 0:
                 # MmsError_toString takes the enum value (int), not the
                 # opaque wrapper returned by MmsError_create. Passing the
                 # wrapper raises TypeError from SWIG.
                 raise FileTransferError(
-                    f"Download of {remote_path!r} failed: "
-                    f"{iec61850.MmsError_toString(code)}"
+                    f"Download of {remote_path!r} failed: {iec61850.MmsError_toString(code)}"
                 )
             succeeded = True
         finally:
@@ -747,13 +769,21 @@ class MMSClient:
             logger.debug(f"MmsValue conversion error: {e}")
             return None
 
-    def write_value(self, reference: str, value: Any) -> bool:
+    def write_value(self, reference: str, value: Any, fc: Any = None) -> bool:
         """
         Write a value to a variable.
 
         Args:
-            reference: Full object reference
+            reference: Full object reference. May include a trailing "[FC]"
+                suffix (e.g. "LD0/GGIO1.SPCSO1.Oper.ctlVal[CO]") which will be
+                parsed and stripped.
             value: Python value to write
+            fc: Functional constraint. Accepts an int (iec61850.IEC61850_FC_*),
+                a two-letter string ("SP", "CO", "CF", ...), or None.
+                If None and the reference has no [FC] suffix, defaults to ST.
+                Note: ST (Status) is device-published and rejected as a write
+                target by conformant servers — callers writing setpoints (SP) or
+                controls (CO) must pass the appropriate writable FC.
 
         Returns:
             True if successful
@@ -764,17 +794,32 @@ class MMSClient:
         """
         self._ensure_connected()
 
+        # Parse optional [FC] suffix in the reference (mirrors read_value).
+        if reference.endswith("]") and "[" in reference:
+            ref_body, suffix = reference.rsplit("[", 1)
+            suffix = suffix[:-1]
+            if suffix in _FC_NAMES:
+                reference = ref_body
+                if fc is None:
+                    fc = suffix
+
+        if fc is None:
+            fc = iec61850.IEC61850_FC_ST
+        elif isinstance(fc, str):
+            fc = getattr(iec61850, f"IEC61850_FC_{fc.upper()}", iec61850.IEC61850_FC_ST)
+
         mms_value = None
         try:
             mms_value = self._create_mms_value(value)
             if not mms_value:
                 raise WriteError(f"Failed to create MmsValue for {type(value)}")
 
-            fc = iec61850.IEC61850_FC_ST
+            result = iec61850.IedConnection_writeObject(self._connection, reference, fc, mms_value)
+            # IedConnection_writeObject returns an (None, error) tuple in this
+            # binding; unpack_result also tolerates a bare scalar error code.
+            _, error, ok = unpack_result(result)
 
-            error = iec61850.IedConnection_writeObject(self._connection, reference, fc, mms_value)
-
-            if error != iec61850.IED_ERROR_OK:
+            if not ok:
                 raise WriteError(f"Write failed: {self._get_error_string(error)}")
 
             return True

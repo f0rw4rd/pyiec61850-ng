@@ -4,15 +4,15 @@ Integration test: read_value functional constraint handling.
 ``read_value`` now supports FC override via kwarg and ``[FC]`` suffix.
 These tests pin down the behaviour against a real server.
 
-Characterisation note: ``server_example_basic_io`` returns a value even
-when the wrong FC is used. This is server-specific — real devices may
-reject wrong-FC reads. The tests document the current reality so any
-future change is a deliberate decision, not a surprise.
+Characterisation note: ``server_example_basic_io`` answers a wrong-FC
+read (an MX attribute read under FC_ST) with an MMS data-access-error
+rather than a value. ``read_value`` maps that to ``None`` (via
+``mms_value_to_python``) instead of raising, so callers can detect the
+failed read by ``is None``. The tests document the current reality so
+any future change is a deliberate decision, not a surprise.
 """
 
-from pyiec61850.mms import MMSClient, ReadError
-
-from ._fixture import IntegrationServerCase, REF_MX_FLOAT, REF_ST_BOOL
+from ._fixture import REF_MX_FLOAT, REF_ST_BOOL, IntegrationServerCase
 
 
 class TestReadValueFC(IntegrationServerCase):
@@ -52,11 +52,13 @@ class TestReadValueFC(IntegrationServerCase):
         self.assertEqual(value, value_st)
 
     def test_wrong_fc_does_not_raise_on_basic_io_server(self):
-        """Characterisation: the basic_io server returns a value when an
-        MX attribute is read under FC_ST. We freeze this so any future
-        server-side change is visible as a test failure."""
+        """Characterisation: reading an MX attribute under the wrong FC (ST)
+        does not raise — the basic_io server answers with an MMS
+        data-access-error, which read_value maps to None (Bug 3 fix: the
+        old converter masked this as a truthy "<MmsValue type=15>"
+        placeholder). We freeze this so any future change is visible."""
         value = self.client.read_value(REF_MX_FLOAT, fc="ST")
-        self.assertIsNotNone(value)
+        self.assertIsNone(value)
 
     def test_bracket_suffix_is_stripped_from_reference(self):
         """After parsing [FC], the suffix must not be sent to the server.

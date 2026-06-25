@@ -7,7 +7,7 @@ constant. That bug was invisible to every mocked test in
 ``tests/test_mms.py`` because the mocks returned bare ints, not tuples.
 """
 
-from pyiec61850.mms import MMSClient, ConnectionFailedError
+from pyiec61850.mms import ConnectionFailedError, MMSClient
 
 from ._fixture import IntegrationServerCase
 
@@ -73,13 +73,22 @@ class TestConnect(IntegrationServerCase):
 
     def test_get_server_identity_after_connect(self):
         """A trivial MMS round-trip — proves the association completed,
-        not just that TCP connected."""
+        not just that TCP connected.
+
+        Regression guard: get_server_identity() used to call the
+        non-existent IedConnection_identify and always return an empty
+        identity. It now uses the MMS-layer Identify service, so the
+        basic_io example server must report a populated identity."""
         with MMSClient(self.host, self.port) as client:
             identity = client.get_server_identity()
             self.assertIsNotNone(identity)
-            # The identity object must have all three fields. The basic_io
-            # server may return None for all of them — that's fine, the
-            # important thing is the round-trip didn't crash.
             self.assertTrue(hasattr(identity, "vendor"))
             self.assertTrue(hasattr(identity, "model"))
             self.assertTrue(hasattr(identity, "revision"))
+            # At least one field must be populated — an all-None identity
+            # is the symptom of the bug this method used to have.
+            self.assertTrue(
+                any((identity.vendor, identity.model, identity.revision)),
+                "server identity was empty — Identify service returned no "
+                "data (regression in get_server_identity)",
+            )

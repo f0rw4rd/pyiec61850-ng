@@ -92,7 +92,7 @@ class TestCreateTLSConfiguration(unittest.TestCase):
     """Test create_tls_configuration function."""
 
     def test_raises_without_library(self):
-        with patch("pyiec61850.mms.tls._HAS_IEC61850", False):
+        with patch("pyiec61850._libload.have_library", return_value=False):
             from pyiec61850.mms.exceptions import LibraryNotFoundError
             from pyiec61850.mms.tls import TLSConfig, create_tls_configuration
 
@@ -254,7 +254,7 @@ class TestCreateTLSConnection(unittest.TestCase):
     """Test create_tls_connection function."""
 
     def test_raises_without_library(self):
-        with patch("pyiec61850.mms.tls._HAS_IEC61850", False):
+        with patch("pyiec61850._libload.have_library", return_value=False):
             from pyiec61850.mms.exceptions import LibraryNotFoundError
             from pyiec61850.mms.tls import create_tls_connection
 

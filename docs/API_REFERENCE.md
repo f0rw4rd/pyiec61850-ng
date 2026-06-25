@@ -499,8 +499,10 @@ objects = client.get_data_objects(device, node)  # List[str]
 attrs = client.get_data_attributes(device, node, obj)  # List[str]
 
 # Data access
-value = client.read_value(reference)        # Any
-success = client.write_value(reference, value)  # bool
+value = client.read_value(reference, fc=None)   # Any; fc: "ST"/"MX"/... or [FC] suffix
+success = client.write_value(reference, value, fc=None)  # bool; pass a writable
+                                                         # FC ("SP"/"CO"/...) — ST
+                                                         # is rejected by conformant servers
 ```
 
 ### Safe Utility Functions

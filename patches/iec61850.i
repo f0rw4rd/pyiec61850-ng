@@ -143,68 +143,79 @@ DataObject* toDataObject(ModelNode * MN)
  * These types are all typedef'd as pointers (e.g. typedef struct sX* X)
  * so the typemap target matches the typedef name directly. */
 
+/* The "$symname" guard skips the NULL check for the *_destroy functions, whose
+ * matching `%exception ..._destroy { if (arg1) $action }` blocks below make a
+ * NULL handle a safe no-op (free(NULL) semantics). Without the guard the check
+ * typemap fires first and turns destroy(None) into a ValueError, defeating the
+ * no-op intent. SWIG substitutes $symname with the wrapped function name. */
+
 %typemap(check) IedConnection {
-    if (!$1) {
+    if (!$1 && strstr("$symname", "_destroy") == NULL) {
         SWIG_exception_fail(SWIG_ValueError, "IedConnection is NULL");
     }
 }
 
 %typemap(check) MmsConnection {
-    if (!$1) {
+    if (!$1 && strstr("$symname", "_destroy") == NULL) {
         SWIG_exception_fail(SWIG_ValueError, "MmsConnection is NULL");
     }
 }
 
 %typemap(check) GooseSubscriber {
-    if (!$1) {
+    if (!$1 && strstr("$symname", "_destroy") == NULL) {
         SWIG_exception_fail(SWIG_ValueError, "GooseSubscriber is NULL");
     }
 }
 
 %typemap(check) GooseReceiver {
-    if (!$1) {
+    if (!$1 && strstr("$symname", "_destroy") == NULL) {
         SWIG_exception_fail(SWIG_ValueError, "GooseReceiver is NULL");
     }
 }
 
 %typemap(check) GoosePublisher {
-    if (!$1) {
+    if (!$1 && strstr("$symname", "_destroy") == NULL) {
         SWIG_exception_fail(SWIG_ValueError, "GoosePublisher is NULL");
     }
 }
 
 %typemap(check) LinkedList {
-    if (!$1) {
+    if (!$1 && strstr("$symname", "_destroy") == NULL) {
         SWIG_exception_fail(SWIG_ValueError, "LinkedList is NULL");
     }
 }
 
 %typemap(check) ControlObjectClient {
-    if (!$1) {
+    if (!$1 && strstr("$symname", "_destroy") == NULL) {
         SWIG_exception_fail(SWIG_ValueError, "ControlObjectClient is NULL");
     }
 }
 
 %typemap(check) ClientReportControlBlock {
-    if (!$1) {
+    if (!$1 && strstr("$symname", "_destroy") == NULL) {
         SWIG_exception_fail(SWIG_ValueError, "ClientReportControlBlock is NULL");
     }
 }
 
 %typemap(check) ClientDataSet {
-    if (!$1) {
+    if (!$1 && strstr("$symname", "_destroy") == NULL) {
         SWIG_exception_fail(SWIG_ValueError, "ClientDataSet is NULL");
     }
 }
 
 %typemap(check) ClientGooseControlBlock {
-    if (!$1) {
+    if (!$1 && strstr("$symname", "_destroy") == NULL) {
         SWIG_exception_fail(SWIG_ValueError, "ClientGooseControlBlock is NULL");
     }
 }
 
+/* MmsValue_delete(NULL) is a no-op (see %exception below). GooseSubscriber_create
+ * accepts a NULL dataSetValues (means "auto-create the dataset"), so NULL is a
+ * valid argument there and must not be rejected. */
 %typemap(check) MmsValue* {
-    if (!$1) {
+    if (!$1
+        && strcmp("$symname", "MmsValue_delete") != 0
+        && strcmp("$symname", "GooseSubscriber_create") != 0) {
         SWIG_exception_fail(SWIG_ValueError, "MmsValue is NULL");
     }
 }

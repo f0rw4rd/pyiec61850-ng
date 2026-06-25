@@ -26,16 +26,19 @@ from pyiec61850.mms import MMSClient
 
 from ._fixture import _skip_reason
 
-
 LOOPBACK_PORT_BASE = 11103
 
-MODEL_CFG = os.path.join(
+# Prefer the model config vendored alongside the tests (so this runs on a plain
+# checkout); fall back to the libiec61850 source tree when present.
+_VENDORED_CFG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "model.cfg")
+_SOURCE_CFG = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
     "libiec61850",
     "examples",
     "server_example_config_file",
     "model.cfg",
 )
+MODEL_CFG = _VENDORED_CFG if os.path.exists(_VENDORED_CFG) else _SOURCE_CFG
 
 # libiec61850 concatenates IED name ("simpleIO") with LD inst ("GenericIO")
 # into a single domain ID. The client sees the joined form.
@@ -92,9 +95,7 @@ class TestIedServerLoopback(unittest.TestCase):
                 time.sleep(0.1)
         else:
             cls.server.stop()
-            raise unittest.SkipTest(
-                f"IedServer did not start listening on 127.0.0.1:{cls.port}"
-            )
+            raise unittest.SkipTest(f"IedServer did not start listening on 127.0.0.1:{cls.port}")
 
     @classmethod
     def tearDownClass(cls) -> None:

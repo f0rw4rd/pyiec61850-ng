@@ -87,7 +87,7 @@ class TestGooseSubscriber(unittest.TestCase):
     """Test GooseSubscriber class."""
 
     def test_raises_without_library(self):
-        with patch("pyiec61850.goose.subscriber._HAS_IEC61850", False):
+        with patch("pyiec61850._libload.have_library", return_value=False):
             from pyiec61850.goose import GooseSubscriber, LibraryNotFoundError
 
             with self.assertRaises(LibraryNotFoundError):
@@ -296,7 +296,7 @@ class TestGoosePublisher(unittest.TestCase):
     """Test GoosePublisher class."""
 
     def test_raises_without_library(self):
-        with patch("pyiec61850.goose.publisher._HAS_IEC61850", False):
+        with patch("pyiec61850._libload.have_library", return_value=False):
             from pyiec61850.goose import GoosePublisher, LibraryNotFoundError
 
             with self.assertRaises(LibraryNotFoundError):
