@@ -12,7 +12,7 @@ Usage:
 import sys
 import time
 
-from pyiec61850.sv import SVSubscriber
+from pyiec61850.sv import SVError, SVSubscriber
 
 
 def on_sample(msg):
@@ -35,4 +35,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except SVError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        sys.exit(130)

@@ -13,7 +13,7 @@ Usage:
 import sys
 import time
 
-from pyiec61850.goose import GoosePublisher
+from pyiec61850.goose import GooseError, GoosePublisher
 
 
 def main():
@@ -52,4 +52,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except GooseError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        sys.exit(130)

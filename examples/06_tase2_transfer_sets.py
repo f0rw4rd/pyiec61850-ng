@@ -11,6 +11,7 @@ import sys
 from pyiec61850.tase2 import (
     DSTransferSetConfig,
     TASE2Client,
+    TASE2Error,
     TransferSetConditions,
 )
 
@@ -37,7 +38,9 @@ def main() -> None:
         buffer_time=2,
         rbe=True,
         ds_conditions=TransferSetConditions(
-            interval_timeout=True, object_change=True, integrity_timeout=True,
+            interval_timeout=True,
+            object_change=True,
+            integrity_timeout=True,
         ),
     )
     client.configure_transfer_set(domain, ts_name, config)
@@ -49,8 +52,10 @@ def main() -> None:
         while True:
             report = client.get_next_report(timeout=5.0)
             if report:
-                print(f"report #{report.sequence_number}: "
-                      f"{[(pv.name, pv.value) for pv in report.values]}")
+                print(
+                    f"report #{report.sequence_number}: "
+                    f"{[(pv.name, pv.value) for pv in report.values]}"
+                )
                 client.send_transfer_report_ack(domain)
     except KeyboardInterrupt:
         pass
@@ -62,4 +67,10 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except TASE2Error as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        sys.exit(130)

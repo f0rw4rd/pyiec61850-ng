@@ -8,7 +8,7 @@ Usage:
 
 import sys
 
-from pyiec61850.mms import ControlClient, MMSClient, OperateError, SelectError
+from pyiec61850.mms import ControlClient, MMSClient, MMSError, OperateError, SelectError
 
 
 def main() -> None:
@@ -38,4 +38,10 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except MMSError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        sys.exit(130)

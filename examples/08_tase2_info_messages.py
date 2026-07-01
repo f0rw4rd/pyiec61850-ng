@@ -9,7 +9,7 @@ Usage:
 
 import sys
 
-from pyiec61850.tase2 import TASE2Client
+from pyiec61850.tase2 import TASE2Client, TASE2Error
 
 
 def main() -> None:
@@ -23,7 +23,10 @@ def main() -> None:
     client.enable_im_transfer_set("VCC")
 
     client.send_info_message(
-        "ICC1", info_ref=10, local_ref=1, msg_id=50,
+        "ICC1",
+        info_ref=10,
+        local_ref=1,
+        msg_id=50,
         content=b"operator note",
     )
 
@@ -39,4 +42,10 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except TASE2Error as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        sys.exit(130)

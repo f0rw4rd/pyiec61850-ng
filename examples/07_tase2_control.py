@@ -8,7 +8,13 @@ Usage:
 
 import sys
 
-from pyiec61850.tase2 import CMD_OFF, CMD_ON, TAG_NONE, TAG_OPEN_AND_CLOSE_INHIBIT, TASE2Client
+from pyiec61850.tase2 import (
+    CMD_OFF,
+    TAG_NONE,
+    TAG_OPEN_AND_CLOSE_INHIBIT,
+    TASE2Client,
+    TASE2Error,
+)
 
 
 def main() -> None:
@@ -40,4 +46,10 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except TASE2Error as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        sys.exit(130)

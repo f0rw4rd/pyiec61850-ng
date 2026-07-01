@@ -8,7 +8,7 @@ Usage:
 
 import sys
 
-from pyiec61850.tase2 import CMD_OFF, TAG_OPEN_AND_CLOSE_INHIBIT, TASE2Client
+from pyiec61850.tase2 import TASE2Client, TASE2Error
 
 
 def main() -> None:
@@ -23,8 +23,10 @@ def main() -> None:
     print(f"Server: {info.vendor} / {info.model} / {info.revision}")
 
     for domain in client.get_domains():
-        print(f"  {domain.domain_type}: {domain.name} "
-              f"({len(domain.variables)} vars, {len(domain.data_sets)} ds)")
+        print(
+            f"  {domain.domain_type}: {domain.name} "
+            f"({len(domain.variables)} vars, {len(domain.data_sets)} ds)"
+        )
 
     # Read a couple of points (adjust names to match your server's model)
     for d, n in [("ICC1", "Voltage_A"), ("ICC1", "Power_Real")]:
@@ -41,11 +43,16 @@ def main() -> None:
     # client.set_tag("ICC1", "Breaker_Control", TAG_OPEN_AND_CLOSE_INHIBIT, "maint")
 
     analysis = client.analyze_security()
-    print(f"Security: {analysis['readable_points']} readable, "
-          f"{analysis['control_points']} control")
+    print(f"Security: {analysis['readable_points']} readable, {analysis['control_points']} control")
 
     client.disconnect()
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except TASE2Error as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        sys.exit(130)

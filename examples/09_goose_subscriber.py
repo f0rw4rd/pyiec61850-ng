@@ -12,12 +12,11 @@ Usage:
 import sys
 import time
 
-from pyiec61850.goose import GooseSubscriber
+from pyiec61850.goose import GooseError, GooseSubscriber
 
 
 def on_goose_message(msg):
-    print(f"stNum={msg.st_num} sqNum={msg.sq_num} valid={msg.is_valid} "
-          f"values={msg.values}")
+    print(f"stNum={msg.st_num} sqNum={msg.sq_num} valid={msg.is_valid} values={msg.values}")
 
 
 def main():
@@ -36,4 +35,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except GooseError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        sys.exit(130)
