@@ -343,7 +343,6 @@ class TestGoosePublisher(unittest.TestCase):
         with patch("pyiec61850.goose.publisher._HAS_IEC61850", True):
             with patch("pyiec61850.goose.publisher.iec61850") as mock_iec:
                 mock_comm = Mock()
-                mock_comm.dstAddress = [0] * 6
                 mock_iec.CommParameters.return_value = mock_comm
                 mock_iec.GoosePublisher_createEx.return_value = Mock()
 
@@ -354,6 +353,13 @@ class TestGoosePublisher(unittest.TestCase):
                 pub.start()
 
                 self.assertTrue(pub.is_running)
+                # Regression for issue #20: the destination MAC must be set via
+                # the CommParameters_setDstAddress helper, not by item-assigning
+                # the SWIG uint8_t[6] dstAddress array (raises TypeError against
+                # the real binding; a mock list hid it).
+                mock_iec.CommParameters_setDstAddress.assert_called_once_with(
+                    mock_comm, *pub._dst_mac
+                )
 
     def test_start_already_running(self):
         with patch("pyiec61850.goose.publisher._HAS_IEC61850", True):
@@ -378,7 +384,6 @@ class TestGoosePublisher(unittest.TestCase):
         with patch("pyiec61850.goose.publisher._HAS_IEC61850", True):
             with patch("pyiec61850.goose.publisher.iec61850") as mock_iec:
                 mock_comm = Mock()
-                mock_comm.dstAddress = [0] * 6
                 mock_iec.CommParameters.return_value = mock_comm
                 mock_pub = Mock()
                 mock_iec.GoosePublisher_createEx.return_value = mock_pub
@@ -396,7 +401,6 @@ class TestGoosePublisher(unittest.TestCase):
         with patch("pyiec61850.goose.publisher._HAS_IEC61850", True):
             with patch("pyiec61850.goose.publisher.iec61850") as mock_iec:
                 mock_comm = Mock()
-                mock_comm.dstAddress = [0] * 6
                 mock_iec.CommParameters.return_value = mock_comm
                 mock_iec.GoosePublisher_createEx.return_value = Mock()
 
@@ -817,7 +821,6 @@ class TestGoosePublisherCrashPaths(unittest.TestCase):
         with patch("pyiec61850.goose.publisher._HAS_IEC61850", True):
             with patch("pyiec61850.goose.publisher.iec61850") as mock_iec:
                 mock_comm = Mock()
-                mock_comm.dstAddress = [0] * 6
                 mock_iec.CommParameters.return_value = mock_comm
                 mock_iec.GoosePublisher_createEx.return_value = None
 
@@ -832,7 +835,6 @@ class TestGoosePublisherCrashPaths(unittest.TestCase):
         with patch("pyiec61850.goose.publisher._HAS_IEC61850", True):
             with patch("pyiec61850.goose.publisher.iec61850") as mock_iec:
                 mock_comm = Mock()
-                mock_comm.dstAddress = [0] * 6
                 mock_iec.CommParameters.return_value = mock_comm
                 mock_iec.GoosePublisher_createEx.return_value = Mock()
                 mock_iec.GoosePublisher_setGoCbRef.side_effect = RuntimeError("boom")
@@ -957,7 +959,6 @@ class TestGoosePublisherCrashPaths(unittest.TestCase):
         with patch("pyiec61850.goose.publisher._HAS_IEC61850", True):
             with patch("pyiec61850.goose.publisher.iec61850") as mock_iec:
                 mock_comm = Mock()
-                mock_comm.dstAddress = [0] * 6
                 mock_iec.CommParameters.return_value = mock_comm
                 mock_iec.GoosePublisher_createEx.return_value = Mock()
 

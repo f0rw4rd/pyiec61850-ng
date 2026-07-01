@@ -3,6 +3,18 @@
 All notable changes to this project are documented here. Versioning follows
 `LIBIEC61850_VERSION.REVISION` (see `version.py`).
 
+## 1.6.1.5
+
+### Fixed — GOOSE publisher (issue #20)
+- **`GoosePublisher.start()` no longer crashes.** It set the destination MAC by
+  item-assigning `CommParameters.dstAddress` (a C `uint8_t[6]` array SWIG
+  exposes as an opaque `unsigned char *`), which raised
+  `TypeError: 'SwigPyObject' object does not support item assignment` and made
+  GOOSE publishing unusable. It now uses the binding's
+  `CommParameters_setDstAddress` helper. Added a real-binding integration test
+  (a mocked `CommParameters` is item-assignable, which is why the unit tests
+  never caught this).
+
 ## 1.6.1.4
 
 ### Fixed — MMS client (high-level `MMSClient`)

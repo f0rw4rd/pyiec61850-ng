@@ -266,10 +266,12 @@ class GoosePublisher:
             self._comm_params.vlanId = self._vlan_id
             self._comm_params.vlanPriority = self._vlan_priority
 
-            # Set destination MAC
+            # Set destination MAC. dstAddress is a C uint8_t[6] array that SWIG
+            # exposes as an opaque `unsigned char *` (no Python item
+            # assignment — `dstAddress[i] = x` raises TypeError), so use the
+            # binding's byte-wise setter helper instead of indexing it.
             if self._dst_mac:
-                for i in range(6):
-                    self._comm_params.dstAddress[i] = self._dst_mac[i]
+                iec61850.CommParameters_setDstAddress(self._comm_params, *self._dst_mac[:6])
 
             # Create publisher
             self._publisher = iec61850.GoosePublisher_createEx(
