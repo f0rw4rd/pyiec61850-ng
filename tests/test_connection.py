@@ -39,8 +39,10 @@ class TestConnection(unittest.TestCase):
         self.assertIsNotNone(connection)
 
         try:
-            # Attempt to connect
-            error = pyiec61850.IedConnection_connect(connection, self.test_host, self.test_port)
+            # Attempt to connect. IedConnection_connect returns a (None, error)
+            # tuple in this binding (the IedClientError* out-param typemap).
+            result = pyiec61850.IedConnection_connect(connection, self.test_host, self.test_port)
+            error = result[-1] if isinstance(result, tuple) else result
 
             if error == pyiec61850.IED_ERROR_OK:
                 # Connection successful
@@ -64,8 +66,10 @@ class TestConnection(unittest.TestCase):
         """Test error handling for invalid connections"""
         connection = pyiec61850.IedConnection_create()
 
-        # Try to connect to invalid address
-        error = pyiec61850.IedConnection_connect(connection, "invalid.host.example.com", 9999)
+        # Try to connect to invalid address (connect returns a (None, error)
+        # tuple in this binding — unwrap before comparing / stringifying).
+        result = pyiec61850.IedConnection_connect(connection, "invalid.host.example.com", 9999)
+        error = result[-1] if isinstance(result, tuple) else result
 
         # Should not be OK
         self.assertNotEqual(error, pyiec61850.IED_ERROR_OK)
