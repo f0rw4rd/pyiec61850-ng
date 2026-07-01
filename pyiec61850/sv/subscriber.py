@@ -36,7 +36,6 @@ from .exceptions import (
     ConfigurationError,
     InterfaceError,
     LibraryNotFoundError,
-    NotStartedError,
     SubscriptionError,
 )
 from .types import SVMessage
@@ -88,6 +87,8 @@ class SVSubscriber:
         self._app_id: Optional[int] = None
         self._sv_id: Optional[str] = None
         self._dst_mac: Optional[bytes] = None
+        self._sv_handler = None
+        self._sv_subscriber_py = None
 
     @property
     def interface(self) -> str:
@@ -179,30 +180,28 @@ class SVSubscriber:
             raise AlreadyStartedError()
 
         try:
-            # Create SV receiver
+            # Create the subscriber (optional dst-MAC + APPID filter).
+            app = self._app_id if self._app_id is not None else 0
+            self._subscriber = iec61850.SVSubscriber_create(self._dst_mac, app)
+            if not self._subscriber:
+                raise SubscriptionError("Failed to create SVSubscriber")
+
+            # Wire the SWIG director so libiec61850's SVUpdateListener callback
+            # reaches the Python listener (Python cannot supply a C function
+            # pointer). See patches/svHandler.hpp.
+            if self._listener and hasattr(iec61850, "SVHandler"):
+                self._sv_handler = _PySVHandler(self._listener)
+                self._sv_subscriber_py = iec61850.SVSubscriberForPython()
+                self._sv_subscriber_py.setLibiec61850SVSubscriber(self._subscriber)
+                self._sv_subscriber_py.setEventHandler(self._sv_handler)
+                self._sv_subscriber_py.subscribe()
+
+            # Create the receiver and start listening.
             self._receiver = iec61850.SVReceiver_create()
             if not self._receiver:
                 raise SubscriptionError("Failed to create SVReceiver")
 
             iec61850.SVReceiver_setInterfaceId(self._receiver, self._interface)
-
-            # Create subscriber with optional APPID filter
-            if self._app_id is not None:
-                self._subscriber = iec61850.SVSubscriber_create(self._dst_mac, self._app_id)
-            else:
-                self._subscriber = iec61850.SVSubscriber_create(None, 0)
-
-            if not self._subscriber:
-                raise SubscriptionError("Failed to create SVSubscriber")
-
-            # Install callback if listener is set
-            if self._listener:
-                _sv_listener_registry[id(self)] = self._listener
-                # Use the C callback mechanism via SVSubscriber_setListener
-                # Since we cannot create C function pointers from Python,
-                # we rely on polling or the SWIG handler pattern
-                pass
-
             iec61850.SVReceiver_addSubscriber(self._receiver, self._subscriber)
             iec61850.SVReceiver_start(self._receiver)
 
@@ -220,50 +219,6 @@ class SVSubscriber:
             self._cleanup()
             raise SubscriptionError(str(e))
 
-    def read_current_values(self) -> SVMessage:
-        """
-        Read the current sample values from the subscriber.
-
-        This is a polling-based approach: call periodically to get
-        the latest received sample data.
-
-        Returns:
-            SVMessage with current sample data
-
-        Raises:
-            NotStartedError: If subscriber is not running
-        """
-        if not self._running:
-            raise NotStartedError("Subscriber not started")
-
-        msg = SVMessage()
-        try:
-            if self._subscriber:
-                msg.smp_cnt = iec61850.SVSubscriber_getSmpCnt(self._subscriber)
-                msg.conf_rev = iec61850.SVSubscriber_getConfRev(self._subscriber)
-                msg.smp_synch = iec61850.SVSubscriber_getSmpSynch(self._subscriber)
-
-                if hasattr(iec61850, "SVSubscriber_getSVID"):
-                    msg.sv_id = iec61850.SVSubscriber_getSVID(self._subscriber)
-
-                # Read ASDU values (typically 8 values: 4 currents + 4 voltages)
-                asdu = iec61850.SVSubscriber_getASDU(self._subscriber, 0)
-                if asdu:
-                    for i in range(8):
-                        try:
-                            val = iec61850.SVClientASDU_getINT32(asdu, i * 4)
-                            msg.values.append(float(val))
-                        except Exception:
-                            break
-
-                msg.timestamp = datetime.now(tz=timezone.utc)
-        except NotStartedError:
-            raise
-        except Exception as e:
-            logger.warning(f"Error reading SV values: {e}")
-
-        return msg
-
     def stop(self) -> None:
         """
         Stop receiving Sampled Values.
@@ -277,9 +232,6 @@ class SVSubscriber:
         logger.info(f"Stopping SV subscriber on {self._interface}")
         self._running = False
 
-        # Remove from listener registry
-        _sv_listener_registry.pop(id(self), None)
-
         try:
             if self._receiver:
                 iec61850.SVReceiver_stop(self._receiver)
@@ -289,15 +241,29 @@ class SVSubscriber:
             self._cleanup()
 
     def _cleanup(self) -> None:
-        """Clean up all native resources."""
+        """Clean up all native resources (mirrors the GOOSE ordering)."""
+        # Sever the director link before destroying the C++ objects.
+        if self._sv_subscriber_py:
+            try:
+                self._sv_subscriber_py.deleteEventHandler()
+            except Exception:
+                pass
+
         if self._receiver:
             try:
                 iec61850.SVReceiver_destroy(self._receiver)
             except Exception as e:
                 logger.warning(f"Error destroying SVReceiver: {e}")
         self._receiver = None
-        # Subscriber is destroyed with receiver
+        # Subscriber is destroyed with the receiver — do not double-free.
         self._subscriber = None
+
+        # Prevent SWIG from calling the C++ destructor on the handler (the
+        # SVSubscriberForPython already freed it via deleteEventHandler).
+        if self._sv_handler is not None and hasattr(self._sv_handler, "thisown"):
+            self._sv_handler.thisown = 0
+        self._sv_subscriber_py = None
+        self._sv_handler = None
         self._running = False
 
     def __enter__(self) -> "SVSubscriber":
@@ -317,5 +283,60 @@ class SVSubscriber:
             pass
 
 
-# Global listener registry for C callback bridge
-_sv_listener_registry = {}
+_SVHandlerBase = getattr(iec61850, "SVHandler", object)
+
+
+class _PySVHandler(_SVHandlerBase):
+    """Python-side SV handler (SWIG director subclass).
+
+    Inherits from SVHandler so libiec61850's SVUpdateListener trampoline can call
+    trigger() through the director vtable. trigger() reads the ASDU that the C++
+    base stashed just before the call (valid only during the call).
+    """
+
+    def __init__(self, callback):
+        super().__init__()
+        self._callback = callback
+
+    def trigger(self):
+        """Called by C++ when an SV ASDU arrives."""
+        try:
+            asdu = self._libiec61850_sv_asdu
+            msg = SVMessage()
+            try:
+                msg.smp_cnt = iec61850.SVSubscriber_ASDU_getSmpCnt(asdu)
+            except Exception:
+                pass
+            try:
+                msg.conf_rev = iec61850.SVSubscriber_ASDU_getConfRev(asdu)
+            except Exception:
+                pass
+            try:
+                msg.smp_synch = iec61850.SVSubscriber_ASDU_getSmpSynch(asdu)
+            except Exception:
+                pass
+            try:
+                if hasattr(iec61850, "SVSubscriber_ASDU_getSvId"):
+                    msg.sv_id = iec61850.SVSubscriber_ASDU_getSvId(asdu)
+            except Exception:
+                pass
+            # Decode the data set as INT32 samples (matches the INT32 publisher).
+            # getDataSize returns bytes; each INT32 occupies 4 bytes.
+            try:
+                size = iec61850.SVSubscriber_ASDU_getDataSize(asdu)
+                for offset in range(0, size, 4):
+                    try:
+                        msg.values.append(iec61850.SVSubscriber_ASDU_getINT32(asdu, offset))
+                    except Exception:
+                        break
+            except Exception:
+                pass
+            msg.timestamp = datetime.now(tz=timezone.utc)
+
+            if self._callback:
+                try:
+                    self._callback(msg)
+                except Exception as e:
+                    logger.warning(f"SV listener callback error: {e}")
+        except Exception as e:
+            logger.warning(f"SV handler error: {e}")

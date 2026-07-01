@@ -162,15 +162,6 @@ class TestSVSubscriber(unittest.TestCase):
                 with self.assertRaises(InterfaceError):
                     sub.start()
 
-    def test_read_current_values_not_started(self):
-        with patch("pyiec61850.sv.subscriber._HAS_IEC61850", True):
-            with patch("pyiec61850.sv.subscriber.iec61850"):
-                from pyiec61850.sv import NotStartedError, SVSubscriber
-
-                sub = SVSubscriber("eth0")
-                with self.assertRaises(NotStartedError):
-                    sub.read_current_values()
-
     def test_stop(self):
         with patch("pyiec61850.sv.subscriber._HAS_IEC61850", True):
             with patch("pyiec61850.sv.subscriber.iec61850") as mock_iec:
@@ -323,26 +314,32 @@ class TestSVSubscriberCrashPaths(unittest.TestCase):
 
                 mock_iec.SVSubscriber_create.assert_called_once_with(None, 0x4000)
 
-    def test_start_with_listener_registers(self):
-        """start() with listener set must register in _sv_listener_registry."""
+    def test_start_with_listener_wires_director(self):
+        """start() with a listener must wire the SWIG director (SVSubscriberForPython)."""
         with patch("pyiec61850.sv.subscriber._HAS_IEC61850", True):
             with patch("pyiec61850.sv.subscriber.iec61850") as mock_iec:
                 mock_iec.SVReceiver_create.return_value = Mock()
                 mock_iec.SVSubscriber_create.return_value = Mock()
                 mock_iec.SVReceiver_isRunning.return_value = True
+                sv_py = Mock()
+                mock_iec.SVSubscriberForPython.return_value = sv_py
 
                 from pyiec61850.sv import SVSubscriber
-                from pyiec61850.sv.subscriber import _sv_listener_registry
 
                 sub = SVSubscriber("eth0")
-                cb = Mock()
-                sub.set_listener(cb)
+                sub.set_listener(Mock())
                 sub.start()
 
-                self.assertIn(id(sub), _sv_listener_registry)
+                # The subscriber, handler, and receiver are wired together and
+                # the listener is installed via subscribe().
+                mock_iec.SVSubscriberForPython.assert_called_once()
+                sv_py.setLibiec61850SVSubscriber.assert_called_once()
+                sv_py.setEventHandler.assert_called_once()
+                sv_py.subscribe.assert_called_once()
 
                 sub.stop()
-                self.assertNotIn(id(sub), _sv_listener_registry)
+                # Cleanup severs the director link.
+                sv_py.deleteEventHandler.assert_called_once()
 
     def test_start_unexpected_exception_triggers_cleanup(self):
         """Unexpected exception during start must trigger _cleanup."""
@@ -414,48 +411,45 @@ class TestSVSubscriberCrashPaths(unittest.TestCase):
                 sub.stop()  # Must be no-op
                 self.assertFalse(sub.is_running)
 
-    def test_read_current_values_success(self):
-        """read_current_values must return SVMessage with data."""
+    def test_handler_decodes_asdu_values(self):
+        """The SV director's trigger() must decode ASDU INT32 samples to the listener."""
         with patch("pyiec61850.sv.subscriber._HAS_IEC61850", True):
             with patch("pyiec61850.sv.subscriber.iec61850") as mock_iec:
-                mock_iec.SVReceiver_create.return_value = Mock()
-                mock_iec.SVSubscriber_create.return_value = Mock()
-                mock_iec.SVReceiver_isRunning.return_value = True
-                mock_iec.SVSubscriber_getSmpCnt.return_value = 42
-                mock_iec.SVSubscriber_getConfRev.return_value = 1
-                mock_iec.SVSubscriber_getSmpSynch.return_value = 0
-                mock_asdu = Mock()
-                mock_iec.SVSubscriber_getASDU.return_value = mock_asdu
-                mock_iec.SVClientASDU_getINT32.side_effect = [100, 200, 300, 400, 0, 0, 0, 0]
+                mock_iec.SVSubscriber_ASDU_getSmpCnt.return_value = 42
+                mock_iec.SVSubscriber_ASDU_getConfRev.return_value = 1
+                mock_iec.SVSubscriber_ASDU_getSmpSynch.return_value = 0
+                mock_iec.SVSubscriber_ASDU_getDataSize.return_value = 16  # 4 x INT32
+                samples = {0: 100, 4: 200, 8: 300, 12: 400}
+                mock_iec.SVSubscriber_ASDU_getINT32.side_effect = lambda _a, off: samples[off]
 
-                from pyiec61850.sv import SVSubscriber
+                from pyiec61850.sv.subscriber import _PySVHandler
 
-                sub = SVSubscriber("eth0")
-                sub.start()
-                msg = sub.read_current_values()
+                received = []
+                handler = _PySVHandler(received.append)
+                handler._libiec61850_sv_asdu = Mock()
+                handler.trigger()
 
-                self.assertEqual(msg.smp_cnt, 42)
-                self.assertEqual(len(msg.values), 8)
+                self.assertEqual(len(received), 1)
+                self.assertEqual(received[0].smp_cnt, 42)
+                self.assertEqual(received[0].values, [100, 200, 300, 400])
 
-    def test_read_current_values_null_asdu(self):
-        """read_current_values with NULL ASDU must not crash."""
+    def test_handler_empty_dataset(self):
+        """An ASDU with a zero-byte data set yields no values and does not crash."""
         with patch("pyiec61850.sv.subscriber._HAS_IEC61850", True):
             with patch("pyiec61850.sv.subscriber.iec61850") as mock_iec:
-                mock_iec.SVReceiver_create.return_value = Mock()
-                mock_iec.SVSubscriber_create.return_value = Mock()
-                mock_iec.SVReceiver_isRunning.return_value = True
-                mock_iec.SVSubscriber_getSmpCnt.return_value = 0
-                mock_iec.SVSubscriber_getConfRev.return_value = 0
-                mock_iec.SVSubscriber_getSmpSynch.return_value = 0
-                mock_iec.SVSubscriber_getASDU.return_value = None
+                mock_iec.SVSubscriber_ASDU_getSmpCnt.return_value = 0
+                mock_iec.SVSubscriber_ASDU_getConfRev.return_value = 0
+                mock_iec.SVSubscriber_ASDU_getSmpSynch.return_value = 0
+                mock_iec.SVSubscriber_ASDU_getDataSize.return_value = 0
 
-                from pyiec61850.sv import SVSubscriber
+                from pyiec61850.sv.subscriber import _PySVHandler
 
-                sub = SVSubscriber("eth0")
-                sub.start()
-                msg = sub.read_current_values()
+                received = []
+                handler = _PySVHandler(received.append)
+                handler._libiec61850_sv_asdu = Mock()
+                handler.trigger()
 
-                self.assertEqual(msg.values, [])
+                self.assertEqual(received[0].values, [])
 
     def test_set_sv_id(self):
         """set_sv_id must store the SV ID."""

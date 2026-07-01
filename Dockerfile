@@ -63,6 +63,7 @@ RUN cd libiec61850/third_party/mbedtls && \
 # (NULL-safety typemaps, file download helpers, IedClientError typemap).
 COPY patches/iec61850.i /build/libiec61850/pyiec61850/iec61850.i
 COPY patches/informationReportHandler.hpp /build/libiec61850/pyiec61850/eventHandlers/informationReportHandler.hpp
+COPY patches/svHandler.hpp /build/libiec61850/pyiec61850/eventHandlers/svHandler.hpp
 
 # Building an extension needs only the Python headers (Development.Module), not
 # an embeddable libpython. manylinux interpreters ship no shared libpython, so

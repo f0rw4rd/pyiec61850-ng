@@ -226,6 +226,37 @@ DataObject* toDataObject(ModelNode * MN)
     }
 }
 
+/* Sampled Values opaque handles (same $symname destroy-guard as GOOSE). */
+%typemap(check) SVReceiver {
+    if (!$1 && strstr("$symname", "_destroy") == NULL) {
+        SWIG_exception_fail(SWIG_ValueError, "SVReceiver is NULL");
+    }
+}
+
+%typemap(check) SVSubscriber {
+    if (!$1 && strstr("$symname", "_destroy") == NULL) {
+        SWIG_exception_fail(SWIG_ValueError, "SVSubscriber is NULL");
+    }
+}
+
+%typemap(check) SVSubscriber_ASDU {
+    if (!$1 && strstr("$symname", "_destroy") == NULL) {
+        SWIG_exception_fail(SWIG_ValueError, "SVSubscriber_ASDU is NULL");
+    }
+}
+
+%typemap(check) SVPublisher {
+    if (!$1 && strstr("$symname", "_destroy") == NULL) {
+        SWIG_exception_fail(SWIG_ValueError, "SVPublisher is NULL");
+    }
+}
+
+%typemap(check) SVPublisher_ASDU {
+    if (!$1 && strstr("$symname", "_destroy") == NULL) {
+        SWIG_exception_fail(SWIG_ValueError, "SVPublisher_ASDU is NULL");
+    }
+}
+
 /* --- 2. String parameter NULL/empty checks ---
  * Identifiers, paths, hostnames etc. that must not be NULL or empty. */
 
@@ -344,6 +375,18 @@ DataObject* toDataObject(ModelNode * MN)
     if (arg1) { $action }
 }
 
+%exception SVPublisher_destroy {
+    if (arg1) { $action }
+}
+
+%exception SVReceiver_destroy {
+    if (arg1) { $action }
+}
+
+%exception SVSubscriber_destroy {
+    if (arg1) { $action }
+}
+
 /* --- 4. _create function return-NULL checks ---
  * Raise RuntimeError if allocation/creation fails and returns NULL. */
 
@@ -399,6 +442,30 @@ DataObject* toDataObject(ModelNode * MN)
     $action
     if (!result) {
         PyErr_SetString(PyExc_RuntimeError, "ClientGooseControlBlock_create returned NULL");
+        SWIG_fail;
+    }
+}
+
+%exception SVReceiver_create {
+    $action
+    if (!result) {
+        PyErr_SetString(PyExc_RuntimeError, "SVReceiver_create returned NULL");
+        SWIG_fail;
+    }
+}
+
+%exception SVSubscriber_create {
+    $action
+    if (!result) {
+        PyErr_SetString(PyExc_RuntimeError, "SVSubscriber_create returned NULL");
+        SWIG_fail;
+    }
+}
+
+%exception SVPublisher_create {
+    $action
+    if (!result) {
+        PyErr_SetString(PyExc_RuntimeError, "SVPublisher_create returned NULL");
         SWIG_fail;
     }
 }
@@ -515,6 +582,15 @@ void GooseSubscriber_setDstMac(GooseSubscriber subscriber,
                                uint8_t dst_mac_4,
                                uint8_t dst_mac_5);
 
+/* Sampled Values section (L2 publisher + subscriber). Included before the event
+ * handlers so the SV director (svHandler.hpp) sees the SVSubscriber types. */
+%{
+#include "sv_publisher.h"
+#include "sv_subscriber.h"
+%}
+%include "sv_publisher.h"
+%include "sv_subscriber.h"
+
 /* Event Handler section */
 %feature("director") RCBHandler;
 %feature("director") GooseHandler;
@@ -523,6 +599,7 @@ void GooseSubscriber_setDstMac(GooseSubscriber subscriber,
 %feature("director") WaitForExecutionHandlerForPython;
 %feature("director") ControlHandlerForPython;
 %feature("director") InformationReportHandler;
+%feature("director") SVHandler;
 %{
 #include "eventHandlers/eventHandler.hpp"
 #include "eventHandlers/reportControlBlockHandler.hpp"
@@ -530,6 +607,7 @@ void GooseSubscriber_setDstMac(GooseSubscriber subscriber,
 #include "eventHandlers/commandTermHandler.hpp"
 #include "eventHandlers/controlActionHandler.hpp"
 #include "eventHandlers/informationReportHandler.hpp"
+#include "eventHandlers/svHandler.hpp"
 std::map< std::string, EventSubscriber*> EventSubscriber::m_subscriber_map = {};
 %}
 
@@ -539,6 +617,7 @@ std::map< std::string, EventSubscriber*> EventSubscriber::m_subscriber_map = {};
 %include "eventHandlers/commandTermHandler.hpp"
 %include "eventHandlers/controlActionHandler.hpp"
 %include "eventHandlers/informationReportHandler.hpp"
+%include "eventHandlers/svHandler.hpp"
 
 /* Goose Publisher section */
 %{

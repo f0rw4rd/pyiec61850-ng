@@ -40,8 +40,11 @@ _BINDING_MODULE = "pyiec61850.pyiec61850"
 # accepted, each with a one-line justification. Remove an entry once the
 # underlying gap is fixed (e.g. SV symbols appear once SV is wrapped).
 _SV_REASON = (
-    "SV L2 API not wrapped in patches/iec61850.i yet; enabled + subscriber "
-    "refactored to the callback/ASDU model in a follow-up (see plan Phase 4)."
+    "SV L2 API is now wrapped in patches/iec61850.i (+ the SVHandler director in "
+    "patches/svHandler.hpp) and sv/subscriber.py is refactored to the callback/ASDU "
+    "model, but these symbols only appear in tests/_binding_symbols.txt after a wheel "
+    "rebuild. Remove this block once the snapshot is regenerated from the SV-enabled "
+    "wheel and bump version.py PACKAGE_REVISION (native ABI changed)."
 )
 _TLS_REASON = (
     "TLS cert/key configuration needs a libiec61850 build with TLS support; "
@@ -50,28 +53,32 @@ _TLS_REASON = (
 )
 KNOWN_OPTIONAL: dict[str, str] = dict.fromkeys(
     (
+        # SV publisher (real libiec61850 functions; work once the wheel is rebuilt).
         "SVPublisher_create",
         "SVPublisher_addASDU",
         "SVPublisher_ASDU_addINT32",
-        "SVPublisher_ASDU_setSmpCntWrap",
-        "SVPublisher_setupComplete",
         "SVPublisher_ASDU_setINT32",
         "SVPublisher_ASDU_setSmpCnt",
+        "SVPublisher_ASDU_setSmpCntWrap",
+        "SVPublisher_setupComplete",
         "SVPublisher_publish",
         "SVPublisher_destroy",
+        # SV receiver + subscriber (callback/ASDU model).
         "SVReceiver_create",
         "SVReceiver_setInterfaceId",
-        "SVSubscriber_create",
         "SVReceiver_addSubscriber",
         "SVReceiver_start",
         "SVReceiver_isRunning",
-        "SVSubscriber_getSmpCnt",
-        "SVSubscriber_getConfRev",
-        "SVSubscriber_getSmpSynch",
-        "SVSubscriber_getASDU",
-        "SVClientASDU_getINT32",
         "SVReceiver_stop",
         "SVReceiver_destroy",
+        "SVSubscriber_create",
+        "SVSubscriberForPython",
+        "SVSubscriber_ASDU_getSmpCnt",
+        "SVSubscriber_ASDU_getConfRev",
+        "SVSubscriber_ASDU_getSmpSynch",
+        "SVSubscriber_ASDU_getSvId",
+        "SVSubscriber_ASDU_getDataSize",
+        "SVSubscriber_ASDU_getINT32",
     ),
     _SV_REASON,
 )
