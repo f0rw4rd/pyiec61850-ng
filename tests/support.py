@@ -146,22 +146,31 @@ def make_binding(**overrides) -> MagicMock:
     return binding
 
 
-def install_binding(testcase, binding: MagicMock | None = None, **overrides) -> MagicMock:
-    """Patch the MMS wrappers to use a faithful fake binding for one test.
+# Wrapper modules whose ``iec61850`` / ``_HAS_IEC61850`` the default install
+# patches. Pass ``modules=[...]`` to install_binding to cover others
+# (e.g. "pyiec61850.goose.subscriber", "pyiec61850.mms.tls").
+_DEFAULT_MODULES = ("pyiec61850.mms.client", "pyiec61850.mms.utils")
 
-    Patches ``mms.client.iec61850`` and ``mms.utils.iec61850`` to the fake,
-    flips the modules' ``_HAS_IEC61850`` flags, and reports the library as
-    present so ``require_library()`` is satisfied without the native extension.
-    All patches are torn down via ``testcase.addCleanup``.
+
+def install_binding(
+    testcase,
+    binding: MagicMock | None = None,
+    modules=None,
+    **overrides,
+) -> MagicMock:
+    """Patch wrapper modules to use a faithful fake binding for one test.
+
+    For each module in ``modules`` (default: the MMS client + utils), patches
+    ``<module>.iec61850`` to the fake and flips ``<module>._HAS_IEC61850`` True,
+    and reports the library as present so ``require_library()`` is satisfied
+    without the native extension. All patches are torn down via
+    ``testcase.addCleanup``.
     """
     binding = binding if binding is not None else make_binding(**overrides)
-    targets = [
-        patch("pyiec61850.mms.client.iec61850", binding),
-        patch("pyiec61850.mms.utils.iec61850", binding),
-        patch("pyiec61850.mms.client._HAS_IEC61850", True),
-        patch("pyiec61850.mms.utils._HAS_IEC61850", True),
-        patch("pyiec61850._libload.have_library", return_value=True),
-    ]
+    targets = [patch("pyiec61850._libload.have_library", return_value=True)]
+    for mod in modules if modules is not None else _DEFAULT_MODULES:
+        targets.append(patch(f"{mod}.iec61850", binding))
+        targets.append(patch(f"{mod}._HAS_IEC61850", True))
     for p in targets:
         p.start()
         testcase.addCleanup(p.stop)

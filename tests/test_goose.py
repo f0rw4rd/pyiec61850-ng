@@ -9,6 +9,8 @@ import logging
 import unittest
 from unittest.mock import Mock, patch
 
+from .support import install_binding
+
 logging.disable(logging.CRITICAL)
 
 
@@ -340,26 +342,25 @@ class TestGoosePublisher(unittest.TestCase):
                     pub.set_vlan(5000)  # Over 4095
 
     def test_start_success(self):
-        with patch("pyiec61850.goose.publisher._HAS_IEC61850", True):
-            with patch("pyiec61850.goose.publisher.iec61850") as mock_iec:
-                mock_comm = Mock()
-                mock_iec.CommParameters.return_value = mock_comm
-                mock_iec.GoosePublisher_createEx.return_value = Mock()
+        # Faithful fake: spec'd to the real binding symbols, so a call to a
+        # function the binding does not export would AttributeError here.
+        binding = install_binding(self, modules=["pyiec61850.goose.publisher"])
 
-                from pyiec61850.goose import GoosePublisher
+        from pyiec61850.goose import GoosePublisher
 
-                pub = GoosePublisher("eth0")
-                pub.set_go_cb_ref("test")
-                pub.start()
+        pub = GoosePublisher("eth0")
+        pub.set_go_cb_ref("test")
+        self.addCleanup(pub.stop)
+        pub.start()
 
-                self.assertTrue(pub.is_running)
-                # Regression for issue #20: the destination MAC must be set via
-                # the CommParameters_setDstAddress helper, not by item-assigning
-                # the SWIG uint8_t[6] dstAddress array (raises TypeError against
-                # the real binding; a mock list hid it).
-                mock_iec.CommParameters_setDstAddress.assert_called_once_with(
-                    mock_comm, *pub._dst_mac
-                )
+        self.assertTrue(pub.is_running)
+        # Regression for issue #20: the destination MAC must be set via the
+        # CommParameters_setDstAddress helper, not by item-assigning the SWIG
+        # uint8_t[6] dstAddress array (raises TypeError against the real binding;
+        # a mock list hid it).
+        binding.CommParameters_setDstAddress.assert_called_once_with(
+            binding.CommParameters.return_value, *pub._dst_mac
+        )
 
     def test_start_already_running(self):
         with patch("pyiec61850.goose.publisher._HAS_IEC61850", True):
