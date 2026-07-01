@@ -79,11 +79,18 @@ class _WrapperTestBase(unittest.TestCase):
         self._iec_patcher = patch("pyiec61850.tase2.connection.iec61850", self.iec)
         self._iec_patcher.start()
 
+        # tase2 routes LinkedList iteration/cleanup through mms.utils' guards
+        # (LinkedListGuard), which use mms.utils' own iec61850 reference — point
+        # it at the same mock so wired LinkedList_* side effects are honoured.
+        self._utils_iec_patcher = patch("pyiec61850.mms.utils.iec61850", self.iec)
+        self._utils_iec_patcher.start()
+
         self._has_patcher = patch("pyiec61850.tase2.connection._HAS_IEC61850", True)
         self._has_patcher.start()
 
     def tearDown(self):
         self._has_patcher.stop()
+        self._utils_iec_patcher.stop()
         self._iec_patcher.stop()
         self._have_lib_patcher.stop()
 

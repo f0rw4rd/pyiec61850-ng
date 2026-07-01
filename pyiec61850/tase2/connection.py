@@ -19,6 +19,7 @@ except ImportError:
     iec61850 = None
 
 from .._libload import require_library
+from ..mms.utils import LinkedListGuard
 from .constants import (
     DEFAULT_PORT,
     DEFAULT_TIMEOUT,
@@ -392,15 +393,10 @@ class MmsConnectionWrapper:
 
             domains = []
             if domain_list:
-                element = iec61850.LinkedList_getNext(domain_list)
-                while element:
-                    data = iec61850.LinkedList_getData(element)
-                    if data:
-                        domain_name = iec61850.toCharP(data)
-                        if domain_name:
-                            domains.append(domain_name)
-                    element = iec61850.LinkedList_getNext(element)
-                iec61850.LinkedList_destroy(domain_list)
+                # LinkedListGuard iterates NULL-safely (safe_to_char_p) and
+                # guarantees LinkedList_destroy even if iteration raises.
+                with LinkedListGuard(domain_list) as guard:
+                    domains = list(guard)
 
             return domains
 
@@ -435,15 +431,8 @@ class MmsConnectionWrapper:
 
             variables = []
             if var_list:
-                element = iec61850.LinkedList_getNext(var_list)
-                while element:
-                    data = iec61850.LinkedList_getData(element)
-                    if data:
-                        var_name = iec61850.toCharP(data)
-                        if var_name:
-                            variables.append(var_name)
-                    element = iec61850.LinkedList_getNext(element)
-                iec61850.LinkedList_destroy(var_list)
+                with LinkedListGuard(var_list) as guard:
+                    variables = list(guard)
 
             return variables
 
@@ -480,15 +469,8 @@ class MmsConnectionWrapper:
 
             data_sets = []
             if ds_list:
-                element = iec61850.LinkedList_getNext(ds_list)
-                while element:
-                    data = iec61850.LinkedList_getData(element)
-                    if data:
-                        ds_name = iec61850.toCharP(data)
-                        if ds_name:
-                            data_sets.append(ds_name)
-                    element = iec61850.LinkedList_getNext(element)
-                iec61850.LinkedList_destroy(ds_list)
+                with LinkedListGuard(ds_list) as guard:
+                    data_sets = list(guard)
 
             return data_sets
 
@@ -850,31 +832,31 @@ class MmsConnectionWrapper:
 
             files = []
             if file_list:
-                element = iec61850.LinkedList_getNext(file_list)
-                while element:
-                    data = iec61850.LinkedList_getData(element)
-                    if data:
-                        entry = {}
-                        try:
-                            entry["name"] = iec61850.FileDirectoryEntry_getFileName(data)
-                        except Exception:
-                            entry["name"] = str(data)
-                        try:
-                            entry["size"] = iec61850.FileDirectoryEntry_getFileSize(data)
-                        except Exception:
-                            entry["size"] = 0
-                        try:
-                            entry["last_modified"] = iec61850.FileDirectoryEntry_getLastModified(
-                                data
-                            )
-                        except Exception:
-                            entry["last_modified"] = 0
-                        files.append(entry)
-                    element = iec61850.LinkedList_getNext(element)
-                try:
-                    iec61850.LinkedList_destroy(file_list)
-                except Exception as e:
-                    logger.warning(f"Error destroying file list: {e}")
+                # Entries are FileDirectoryEntry objects (not strings), so
+                # iterate manually — but under LinkedListGuard so the list is
+                # destroyed even if iteration raises.
+                with LinkedListGuard(file_list):
+                    element = iec61850.LinkedList_getNext(file_list)
+                    while element:
+                        data = iec61850.LinkedList_getData(element)
+                        if data:
+                            entry = {}
+                            try:
+                                entry["name"] = iec61850.FileDirectoryEntry_getFileName(data)
+                            except Exception:
+                                entry["name"] = str(data)
+                            try:
+                                entry["size"] = iec61850.FileDirectoryEntry_getFileSize(data)
+                            except Exception:
+                                entry["size"] = 0
+                            try:
+                                entry["last_modified"] = (
+                                    iec61850.FileDirectoryEntry_getLastModified(data)
+                                )
+                            except Exception:
+                                entry["last_modified"] = 0
+                            files.append(entry)
+                        element = iec61850.LinkedList_getNext(element)
 
             return files
 
