@@ -19,6 +19,7 @@ class LibraryNotFoundError(SVError):
 
     def __init__(self, message: str = "pyiec61850 library not found"):
         from .._libload import library_not_found_message
+
         super().__init__(library_not_found_message(message))
 
 

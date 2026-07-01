@@ -79,6 +79,9 @@ class SVPublisher:
         self._asdu = None
         self._running = False
         self._smp_cnt = 0
+        # Byte offsets returned by SVPublisher_ASDU_addINT32, one per entry.
+        # setINT32 is keyed by byte offset, not entry index.
+        self._entry_offsets: list[int] = []
 
         # Configuration
         self._sv_id: str = ""
@@ -240,9 +243,13 @@ class SVPublisher:
             if not self._asdu:
                 raise PublishError("Failed to create SV ASDU")
 
-            # Add INT32 entries for sample data
-            for _ in range(self._num_int32_entries):
+            # Add INT32 entries for sample data. addINT32 returns the byte
+            # offset of the new entry, which setINT32 needs later (it is keyed
+            # by byte offset, not entry index).
+            self._entry_offsets = [
                 iec61850.SVPublisher_ASDU_addINT32(self._asdu)
+                for _ in range(self._num_int32_entries)
+            ]
 
             # Set sample count entry
             iec61850.SVPublisher_ASDU_setSmpCntWrap(self._asdu, self._smp_rate)
@@ -276,11 +283,11 @@ class SVPublisher:
             raise NotStartedError("Publisher not started")
 
         try:
-            # Set values in ASDU
+            # Set values in ASDU at the byte offset each entry was allocated at.
             for i, val in enumerate(values):
                 if i >= self._num_int32_entries:
                     break
-                iec61850.SVPublisher_ASDU_setINT32(self._asdu, i, int(val))
+                iec61850.SVPublisher_ASDU_setINT32(self._asdu, self._entry_offsets[i], int(val))
 
             # Set sample count
             iec61850.SVPublisher_ASDU_setSmpCnt(self._asdu, self._smp_cnt)

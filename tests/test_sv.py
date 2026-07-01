@@ -412,7 +412,7 @@ class TestSVSubscriberCrashPaths(unittest.TestCase):
                 self.assertFalse(sub.is_running)
 
     def test_handler_decodes_asdu_values(self):
-        """The SV director's trigger() must decode ASDU INT32 samples to the listener."""
+        """_decode_asdu must decode ASDU INT32 samples into an SVMessage."""
         with patch("pyiec61850.sv.subscriber._HAS_IEC61850", True):
             with patch("pyiec61850.sv.subscriber.iec61850") as mock_iec:
                 mock_iec.SVSubscriber_ASDU_getSmpCnt.return_value = 42
@@ -422,16 +422,14 @@ class TestSVSubscriberCrashPaths(unittest.TestCase):
                 samples = {0: 100, 4: 200, 8: 300, 12: 400}
                 mock_iec.SVSubscriber_ASDU_getINT32.side_effect = lambda _a, off: samples[off]
 
-                from pyiec61850.sv.subscriber import _PySVHandler
+                # A fake ASDU is passed as an argument — never assigned to the
+                # director's typed _libiec61850_sv_asdu member (see _decode_asdu).
+                from pyiec61850.sv.subscriber import _decode_asdu
 
-                received = []
-                handler = _PySVHandler(received.append)
-                handler._libiec61850_sv_asdu = Mock()
-                handler.trigger()
+                msg = _decode_asdu(object())
 
-                self.assertEqual(len(received), 1)
-                self.assertEqual(received[0].smp_cnt, 42)
-                self.assertEqual(received[0].values, [100, 200, 300, 400])
+                self.assertEqual(msg.smp_cnt, 42)
+                self.assertEqual(msg.values, [100, 200, 300, 400])
 
     def test_handler_empty_dataset(self):
         """An ASDU with a zero-byte data set yields no values and does not crash."""
@@ -442,14 +440,11 @@ class TestSVSubscriberCrashPaths(unittest.TestCase):
                 mock_iec.SVSubscriber_ASDU_getSmpSynch.return_value = 0
                 mock_iec.SVSubscriber_ASDU_getDataSize.return_value = 0
 
-                from pyiec61850.sv.subscriber import _PySVHandler
+                from pyiec61850.sv.subscriber import _decode_asdu
 
-                received = []
-                handler = _PySVHandler(received.append)
-                handler._libiec61850_sv_asdu = Mock()
-                handler.trigger()
+                msg = _decode_asdu(object())
 
-                self.assertEqual(received[0].values, [])
+                self.assertEqual(msg.values, [])
 
     def test_set_sv_id(self):
         """set_sv_id must store the SV ID."""

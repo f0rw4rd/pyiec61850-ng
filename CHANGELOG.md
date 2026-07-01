@@ -3,6 +3,29 @@
 All notable changes to this project are documented here. Versioning follows
 `LIBIEC61850_VERSION.REVISION` (see `version.py`).
 
+## 1.6.1.6
+
+### Added
+- **Sampled Values (IEC 61850-9-2) now works.** The SV L2 API was never wrapped,
+  so every `SVPublisher`/`SVSubscriber` raised on `start()`, and the subscriber
+  called functions that exist in neither the binding nor libiec61850. Now:
+  - `patches/iec61850.i` wraps `sv_publisher.h` + `sv_subscriber.h` with the same
+    NULL-safety typemaps / destroy no-ops / create-NULL checks as GOOSE, and
+    `%ignore`s the deprecated header aliases (`SampledValuesPublisher_*`,
+    `SV_ASDU_*`) that aren't compiled into the library (they caused an
+    `undefined symbol` at import).
+  - `patches/svHandler.hpp` adds a SWIG director (`SVHandler` +
+    `SVSubscriberForPython`) for the callback-based `SVUpdateListener` API, and
+    `sv/subscriber.py` is rebuilt around the callback/ASDU model.
+  - Verified with a Docker `--cap-add=NET_RAW` publish→subscribe round-trip that
+    asserts the decoded INT32 samples match what was published.
+
+### Fixed
+- **SV publisher wrote garbage samples.** `SVPublisher_ASDU_setINT32` is keyed by
+  the entry's **byte offset** (as returned by `addINT32`), but the wrapper passed
+  the entry **index** (0, 1, 2, …) — misaligned, overlapping writes. It now uses
+  the offsets returned by `addINT32`.
+
 ## 1.6.1.5
 
 ### Fixed

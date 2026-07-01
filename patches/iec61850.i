@@ -588,6 +588,33 @@ void GooseSubscriber_setDstMac(GooseSubscriber subscriber,
 #include "sv_publisher.h"
 #include "sv_subscriber.h"
 %}
+/* Deprecated SV aliases: declared in the headers but NOT compiled into the
+ * v1.6.1 library. Without these %ignore's SWIG emits wrappers that reference
+ * undefined symbols, so `import pyiec61850.pyiec61850` fails to load with
+ * "undefined symbol: SampledValuesPublisher_create". Use the real SVPublisher_*
+ * / SV_ASDU replacements (SVPublisher_ASDU_*) instead. */
+%ignore SampledValuesPublisher_create;
+%ignore SampledValuesPublisher_addASDU;
+%ignore SampledValuesPublisher_destroy;
+%ignore SampledValuesPublisher_publish;
+%ignore SampledValuesPublisher_setupComplete;
+%ignore SV_ASDU_addINT8;
+%ignore SV_ASDU_addINT32;
+%ignore SV_ASDU_addINT64;
+%ignore SV_ASDU_addFLOAT;
+%ignore SV_ASDU_addFLOAT64;
+%ignore SV_ASDU_setINT8;
+%ignore SV_ASDU_setINT32;
+%ignore SV_ASDU_setINT64;
+%ignore SV_ASDU_setFLOAT;
+%ignore SV_ASDU_setFLOAT64;
+%ignore SV_ASDU_setSmpCnt;
+%ignore SV_ASDU_getSmpCnt;
+%ignore SV_ASDU_increaseSmpCnt;
+%ignore SV_ASDU_setSmpMod;
+%ignore SV_ASDU_setSmpRate;
+%ignore SV_ASDU_setRefrTm;
+%ignore SV_ASDU_resetBuffer;
 %include "sv_publisher.h"
 %include "sv_subscriber.h"
 

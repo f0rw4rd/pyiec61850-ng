@@ -283,6 +283,47 @@ class SVSubscriber:
             pass
 
 
+def _decode_asdu(asdu) -> SVMessage:
+    """Decode one ``SVSubscriber_ASDU`` into an :class:`SVMessage`.
+
+    Kept as a free function (not a method) so it can be unit-tested with a fake
+    ``asdu`` argument — a test must never *assign* a fake to the director's
+    ``_libiec61850_sv_asdu`` member, because with the real native present that is
+    a typed SWIG setter and a Mock makes the typemap spawn child mocks endlessly.
+    Decodes the data set as INT32 samples (matches the INT32 publisher);
+    getDataSize returns bytes and each INT32 occupies 4 bytes.
+    """
+    msg = SVMessage()
+    try:
+        msg.smp_cnt = iec61850.SVSubscriber_ASDU_getSmpCnt(asdu)
+    except Exception:
+        pass
+    try:
+        msg.conf_rev = iec61850.SVSubscriber_ASDU_getConfRev(asdu)
+    except Exception:
+        pass
+    try:
+        msg.smp_synch = iec61850.SVSubscriber_ASDU_getSmpSynch(asdu)
+    except Exception:
+        pass
+    try:
+        if hasattr(iec61850, "SVSubscriber_ASDU_getSvId"):
+            msg.sv_id = iec61850.SVSubscriber_ASDU_getSvId(asdu)
+    except Exception:
+        pass
+    try:
+        size = iec61850.SVSubscriber_ASDU_getDataSize(asdu)
+        for offset in range(0, size, 4):
+            try:
+                msg.values.append(iec61850.SVSubscriber_ASDU_getINT32(asdu, offset))
+            except Exception:
+                break
+    except Exception:
+        pass
+    msg.timestamp = datetime.now(tz=timezone.utc)
+    return msg
+
+
 _SVHandlerBase = getattr(iec61850, "SVHandler", object)
 
 
@@ -301,42 +342,8 @@ class _PySVHandler(_SVHandlerBase):
     def trigger(self):
         """Called by C++ when an SV ASDU arrives."""
         try:
-            asdu = self._libiec61850_sv_asdu
-            msg = SVMessage()
-            try:
-                msg.smp_cnt = iec61850.SVSubscriber_ASDU_getSmpCnt(asdu)
-            except Exception:
-                pass
-            try:
-                msg.conf_rev = iec61850.SVSubscriber_ASDU_getConfRev(asdu)
-            except Exception:
-                pass
-            try:
-                msg.smp_synch = iec61850.SVSubscriber_ASDU_getSmpSynch(asdu)
-            except Exception:
-                pass
-            try:
-                if hasattr(iec61850, "SVSubscriber_ASDU_getSvId"):
-                    msg.sv_id = iec61850.SVSubscriber_ASDU_getSvId(asdu)
-            except Exception:
-                pass
-            # Decode the data set as INT32 samples (matches the INT32 publisher).
-            # getDataSize returns bytes; each INT32 occupies 4 bytes.
-            try:
-                size = iec61850.SVSubscriber_ASDU_getDataSize(asdu)
-                for offset in range(0, size, 4):
-                    try:
-                        msg.values.append(iec61850.SVSubscriber_ASDU_getINT32(asdu, offset))
-                    except Exception:
-                        break
-            except Exception:
-                pass
-            msg.timestamp = datetime.now(tz=timezone.utc)
-
+            msg = _decode_asdu(self._libiec61850_sv_asdu)
             if self._callback:
-                try:
-                    self._callback(msg)
-                except Exception as e:
-                    logger.warning(f"SV listener callback error: {e}")
+                self._callback(msg)
         except Exception as e:
             logger.warning(f"SV handler error: {e}")

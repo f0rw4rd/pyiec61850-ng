@@ -70,6 +70,12 @@ def main() -> int:
     if not all(isinstance(v, int) for v in msg.values):
         print(f"ROUNDTRIP_FAIL value_types={[type(v).__name__ for v in msg.values]}")
         return 1
+    # Every payload is a consecutive run [v, v+1, v+2, v+3]; a faithful decode
+    # must reproduce that shape (catches byte-offset / endianness regressions).
+    v0 = msg.values[0]
+    if msg.values != [v0 + k for k in range(len(msg.values))]:
+        print(f"ROUNDTRIP_FAIL values_not_consecutive={msg.values}")
+        return 1
     return 0
 
 

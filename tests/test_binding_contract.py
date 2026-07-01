@@ -39,13 +39,6 @@ _BINDING_MODULE = "pyiec61850.pyiec61850"
 # Names the wrappers reference that are NOT in the binding but are KNOWN and
 # accepted, each with a one-line justification. Remove an entry once the
 # underlying gap is fixed (e.g. SV symbols appear once SV is wrapped).
-_SV_REASON = (
-    "SV L2 API is now wrapped in patches/iec61850.i (+ the SVHandler director in "
-    "patches/svHandler.hpp) and sv/subscriber.py is refactored to the callback/ASDU "
-    "model, but these symbols only appear in tests/_binding_symbols.txt after a wheel "
-    "rebuild. Remove this block once the snapshot is regenerated from the SV-enabled "
-    "wheel and bump version.py PACKAGE_REVISION (native ABI changed)."
-)
 _TLS_REASON = (
     "TLS cert/key configuration needs a libiec61850 build with TLS support; "
     "guarded at runtime by hasattr(iec61850, 'TLSConfiguration_create'). "
@@ -53,46 +46,13 @@ _TLS_REASON = (
 )
 KNOWN_OPTIONAL: dict[str, str] = dict.fromkeys(
     (
-        # SV publisher (real libiec61850 functions; work once the wheel is rebuilt).
-        "SVPublisher_create",
-        "SVPublisher_addASDU",
-        "SVPublisher_ASDU_addINT32",
-        "SVPublisher_ASDU_setINT32",
-        "SVPublisher_ASDU_setSmpCnt",
-        "SVPublisher_ASDU_setSmpCntWrap",
-        "SVPublisher_setupComplete",
-        "SVPublisher_publish",
-        "SVPublisher_destroy",
-        # SV receiver + subscriber (callback/ASDU model).
-        "SVReceiver_create",
-        "SVReceiver_setInterfaceId",
-        "SVReceiver_addSubscriber",
-        "SVReceiver_start",
-        "SVReceiver_isRunning",
-        "SVReceiver_stop",
-        "SVReceiver_destroy",
-        "SVSubscriber_create",
-        "SVSubscriberForPython",
-        "SVSubscriber_ASDU_getSmpCnt",
-        "SVSubscriber_ASDU_getConfRev",
-        "SVSubscriber_ASDU_getSmpSynch",
-        "SVSubscriber_ASDU_getSvId",
-        "SVSubscriber_ASDU_getDataSize",
-        "SVSubscriber_ASDU_getINT32",
+        "TLSConfiguration_setOwnCertificateFromFile",
+        "TLSConfiguration_setOwnKeyFromFile",
+        "TLSConfiguration_addCACertificateFromFile",
+        "TLSConfiguration_setChainValidation",
+        "TLSConfiguration_setAllowOnlyKnownCertificates",
     ),
-    _SV_REASON,
-)
-KNOWN_OPTIONAL.update(
-    dict.fromkeys(
-        (
-            "TLSConfiguration_setOwnCertificateFromFile",
-            "TLSConfiguration_setOwnKeyFromFile",
-            "TLSConfiguration_addCACertificateFromFile",
-            "TLSConfiguration_setChainValidation",
-            "TLSConfiguration_setAllowOnlyKnownCertificates",
-        ),
-        _TLS_REASON,
-    )
+    _TLS_REASON,
 )
 
 

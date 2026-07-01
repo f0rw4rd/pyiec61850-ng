@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 @dataclass
 class SVMessage:
     """Received Sampled Values message data."""
+
     sv_id: str = ""
     app_id: int = 0
     smp_cnt: int = 0
@@ -43,6 +44,7 @@ class SVMessage:
 @dataclass
 class SVPublisherConfig:
     """Configuration for SV publisher."""
+
     interface: str = "eth0"
     sv_id: str = ""
     app_id: int = 0x4000
@@ -69,6 +71,7 @@ class SVPublisherConfig:
 @dataclass
 class SVSubscriberConfig:
     """Configuration for SV subscriber."""
+
     interface: str = "eth0"
     sv_id: Optional[str] = None
     app_id: Optional[int] = None

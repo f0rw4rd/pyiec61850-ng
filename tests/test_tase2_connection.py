@@ -529,14 +529,14 @@ class TestDomainOperations(_WrapperTestBase):
 
     def test_get_domain_variables_success(self):
         head = self._wire_linked_list(["Var1", "Var2"])
-        self.iec.IedConnection_getLogicalNodeList.return_value = (head, IED_ERROR_OK)
+        self.iec.IedConnection_getLogicalDeviceDirectory.return_value = (head, IED_ERROR_OK)
         w = self._connected_wrapper()
         self.assertEqual(w.get_domain_variables("ICC1"), ["Var1", "Var2"])
 
     def test_get_domain_variables_error(self):
         from pyiec61850.tase2.exceptions import TASE2Error
 
-        self.iec.IedConnection_getLogicalNodeList.return_value = (
+        self.iec.IedConnection_getLogicalDeviceDirectory.return_value = (
             None,
             IED_ERROR_ACCESS_DENIED,
         )
@@ -835,29 +835,36 @@ class TestDataSetCreateDelete(_WrapperTestBase):
 
 
 class TestServerIdentity(_WrapperTestBase):
+    # get_server_identity uses the MMS Identify service via the underlying
+    # MmsConnection (IedConnection_identify does not exist in this binding).
+    # A plain object (not MagicMock) is used for the identity so a failing
+    # assertion never introspects unset child mocks.
+    @staticmethod
+    def _identity(vendor, model, rev):
+        return type("_Id", (), {"vendorName": vendor, "modelName": model, "revision": rev})()
+
     def test_success(self):
-        identity = MagicMock()
-        identity.vendorName = "ABB"
-        identity.modelName = "RTU560"
-        identity.revision = "1.0"
-        self.iec.IedConnection_identify.return_value = (identity, IED_ERROR_OK)
+        self.iec.IedConnection_getMmsConnection.return_value = object()
+        self.iec.MmsConnection_identify.return_value = self._identity("ABB", "RTU560", "1.0")
         w = self._connected_wrapper()
         self.assertEqual(w.get_server_identity(), ("ABB", "RTU560", "1.0"))
 
-    def test_error_returns_none_tuple(self):
-        self.iec.IedConnection_identify.return_value = (None, IED_ERROR_TIMEOUT)
+    def test_no_mms_connection_returns_none_tuple(self):
+        self.iec.IedConnection_getMmsConnection.return_value = None
         w = self._connected_wrapper()
         self.assertEqual(w.get_server_identity(), (None, None, None))
 
-    def test_non_tuple_returns_none_tuple(self):
-        self.iec.IedConnection_identify.return_value = object()
+    def test_null_identity_returns_none_tuple(self):
+        self.iec.IedConnection_getMmsConnection.return_value = object()
+        self.iec.MmsConnection_identify.return_value = None
         w = self._connected_wrapper()
         self.assertEqual(w.get_server_identity(), (None, None, None))
 
     def test_unexpected_exception_wrapped(self):
         from pyiec61850.tase2.exceptions import TASE2Error
 
-        self.iec.IedConnection_identify.side_effect = RuntimeError("boom")
+        self.iec.IedConnection_getMmsConnection.return_value = object()
+        self.iec.MmsConnection_identify.side_effect = RuntimeError("boom")
         w = self._connected_wrapper()
         with self.assertRaises(TASE2Error):
             w.get_server_identity()
