@@ -180,6 +180,8 @@ jobs:
           cp patches/iec61850.i libiec61850/pyiec61850/iec61850.i
           # Copy custom eventHandler (InformationReport for TASE.2)
           cp patches/informationReportHandler.hpp libiec61850/pyiec61850/eventHandlers/
+          # Copy custom eventHandler (SVHandler director for Sampled Values)
+          cp patches/svHandler.hpp libiec61850/pyiec61850/eventHandlers/
           echo "Enhanced SWIG interface installed"
 
       - name: Download Npcap SDK

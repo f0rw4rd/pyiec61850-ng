@@ -662,7 +662,13 @@ void LinkedList_destroyDeep_MmsValueDelete(LinkedList dataSetValues)
  * free it with LinkedList_destroyDeepStringFree. */
 void LinkedList_addStringCopy(LinkedList list, const char* str)
 {
-    LinkedList_add(list, (void*) strdup(str));
+    /* Portable strdup: MSVC deprecates strdup (C4996). */
+    size_t n = strlen(str) + 1;
+    char* copy = (char*) malloc(n);
+    if (copy != NULL) {
+        memcpy(copy, str, n);
+        LinkedList_add(list, (void*) copy);
+    }
 }
 void LinkedList_destroyDeepStringFree(LinkedList list)
 {
