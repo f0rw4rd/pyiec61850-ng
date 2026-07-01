@@ -240,7 +240,7 @@ class GoCBClient:
 
         for device in devices:
             # Get logical nodes
-            ln_result = iec61850.IedConnection_getLogicalNodeList(conn, device)
+            ln_result = iec61850.IedConnection_getLogicalDeviceDirectory(conn, device)
             ln_value, ln_error, ln_ok = unpack_result(ln_result)
             if not ln_ok:
                 continue

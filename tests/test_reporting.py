@@ -118,7 +118,7 @@ class TestReportClient(unittest.TestCase):
                 mock_rcb = Mock()
                 mock_iec.IedConnection_getRCBValues.return_value = (mock_rcb, 0)
                 mock_iec.ClientReportControlBlock_getRptId.return_value = "rpt01"
-                mock_iec.ClientReportControlBlock_getDataSetName.return_value = "ds01"
+                mock_iec.ClientReportControlBlock_getDataSetReference.return_value = "ds01"
                 mock_iec.ClientReportControlBlock_getTrgOps.return_value = 5
                 mock_iec.ClientReportControlBlock_getRptEna.return_value = True
 

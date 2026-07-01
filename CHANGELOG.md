@@ -5,34 +5,39 @@ All notable changes to this project are documented here. Versioning follows
 
 ## 1.6.1.5
 
-### Fixed — GOOSE publisher (issue #20)
-- **`GoosePublisher.start()` no longer crashes.** It set the destination MAC by
-  item-assigning `CommParameters.dstAddress` (a C `uint8_t[6]` array SWIG
-  exposes as an opaque `unsigned char *`), which raised
-  `TypeError: 'SwigPyObject' object does not support item assignment` and made
-  GOOSE publishing unusable. It now uses the binding's
-  `CommParameters_setDstAddress` helper. Added a real-binding integration test
-  (a mocked `CommParameters` is item-assignable, which is why the unit tests
-  never caught this).
-
-### Fixed — GOOSE subscriber
-- **Value extraction used a non-existent binding function.** `trigger()` sized
-  the received data set with `GooseSubscriber_getNumberOfDataSetEntries`, which
-  does not exist in this binding — the resulting `AttributeError` was swallowed
-  by a broad `except`, leaving the entry count at 0 so no values were ever
-  extracted. It now derives the count from
-  `MmsValue_getArraySize(getDataSetValues(...))`.
+### Fixed
+- **GOOSE publisher crash (issue #20).** `GoosePublisher.start()` item-assigned
+  `CommParameters.dstAddress` — a SWIG `uint8_t[6]` that has no item assignment
+  — raising `TypeError` and making GOOSE publishing unusable. Now uses the
+  `CommParameters_setDstAddress` helper.
+- **GOOSE subscriber never returned values.** `trigger()` counted data-set
+  entries with the non-existent `GooseSubscriber_getNumberOfDataSetEntries` (the
+  `AttributeError` was swallowed, leaving the count at 0). Now uses
+  `MmsValue_getArraySize`.
+- **More calls to binding functions that don't exist** (same class as the two
+  above), found by a new contract test and fixed: `MMSClient.get_data_attributes`
+  used a phantom ACSI class and always returned `[]` (now uses
+  `IedConnection_getDataDirectory`); the TASE.2 `get_server_identity` called the
+  non-existent `IedConnection_identify` (now the MMS Identify service);
+  `GoCBClient` and the TASE.2 connection called `IedConnection_getLogicalNodeList`
+  (now `IedConnection_getLogicalDeviceDirectory`); reporting used
+  `ClientReportControlBlock_getDataSetName`/`_setDataSetName` (now `…Reference`)
+  and a misspelled `ClientReport_getMoreSegementsFollow`; the GOOSE subscriber
+  used `GooseSubscriber_needsCommissioning` (now `…needsCommission`).
 
 ### Tests
-- Added a Docker-based GOOSE publish→subscribe round-trip integration test
-  (`--cap-add=NET_RAW`, publisher and subscriber in one container on `lo`), so
-  GOOSE raw-socket coverage no longer needs host privileges.
+- Docker-based GOOSE publish→subscribe round-trip (publisher + subscriber in one
+  `--cap-add=NET_RAW` container), so raw-socket coverage needs no host privileges.
+- New static contract test (`tests/test_binding_contract.py`): AST-scans the
+  wrappers and fails if any call a binding function absent from
+  `tests/_binding_symbols.txt` (unless `hasattr`-guarded or allowlisted) — the
+  guardrail for the whole "phantom function" bug class. Runs without the native
+  extension. (SV and the TLS cert path are allowlisted as known-unsupported.)
 
 ### Known issues
-- GOOSE data-set **values** still do not round-trip: the subscriber decodes the
-  frame header correctly but libiec61850 reports `GooseSubscriber_getParseError`
-  == 4 (OVERFLOW) on the `allData` payload (reproduces on both `lo` and a veth
-  pair), so received messages carry no values yet. Tracked separately.
+- GOOSE data-set **values** don't round-trip yet: the header decodes but
+  libiec61850 reports parse error 4 (OVERFLOW) on the `allData` payload (on both
+  `lo` and a veth pair). Tracked separately.
 
 ## 1.6.1.4
 

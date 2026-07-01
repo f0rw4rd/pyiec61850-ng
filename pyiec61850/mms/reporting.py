@@ -241,7 +241,9 @@ class ReportClient:
                 except Exception:
                     pass
                 try:
-                    config.data_set = iec61850.ClientReportControlBlock_getDataSetName(rcb_values)
+                    config.data_set = iec61850.ClientReportControlBlock_getDataSetReference(
+                        rcb_values
+                    )
                 except Exception:
                     pass
                 try:
@@ -312,7 +314,7 @@ class ReportClient:
                 parametersMask |= getattr(iec61850, "RCB_ELEMENT_RPT_ID", 0x01)
 
             if config.data_set is not None:
-                iec61850.ClientReportControlBlock_setDataSetName(rcb_values, config.data_set)
+                iec61850.ClientReportControlBlock_setDataSetReference(rcb_values, config.data_set)
                 parametersMask |= getattr(iec61850, "RCB_ELEMENT_DATSET", 0x02)
 
             if config.trigger_options is not None:
@@ -530,7 +532,7 @@ class _PyRCBHandler(_RCBHandlerBase):
             except Exception:
                 pass
             try:
-                report.more_segments_follow = iec61850.ClientReport_getMoreSegementsFollow(
+                report.more_segments_follow = iec61850.ClientReport_getMoreSeqmentsFollow(
                     client_report
                 )
             except Exception:

@@ -524,9 +524,7 @@ class MMSClient:
         reference = f"{device}/{node}.{data_object}"
 
         try:
-            result = iec61850.IedConnection_getLogicalNodeDirectory(
-                self._connection, reference, iec61850.ACSI_CLASS_DATA_ATTRIBUTE
-            )
+            result = iec61850.IedConnection_getDataDirectory(self._connection, reference)
             value, error, ok = unpack_result(result)
 
             if not ok:

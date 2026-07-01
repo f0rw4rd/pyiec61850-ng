@@ -342,7 +342,7 @@ class _PyGooseHandler(_GooseHandlerBase):
             except Exception:
                 pass
             try:
-                msg.needs_commissioning = iec61850.GooseSubscriber_needsCommissioning(subscriber)
+                msg.needs_commissioning = iec61850.GooseSubscriber_needsCommission(subscriber)
             except Exception:
                 pass
             try:

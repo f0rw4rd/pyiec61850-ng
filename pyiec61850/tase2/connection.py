@@ -421,7 +421,7 @@ class MmsConnectionWrapper:
         self._ensure_connected()
 
         try:
-            result = iec61850.IedConnection_getLogicalNodeList(self._connection, domain)
+            result = iec61850.IedConnection_getLogicalDeviceDirectory(self._connection, domain)
 
             if isinstance(result, tuple):
                 var_list, error = result
@@ -780,17 +780,27 @@ class MmsConnectionWrapper:
         self._ensure_connected()
 
         try:
-            result = iec61850.IedConnection_identify(self._connection)
-
-            if isinstance(result, tuple) and len(result) >= 2:
-                identity, error = result[0], result[1]
-                if error == iec61850.IED_ERROR_OK and identity:
-                    vendor = getattr(identity, "vendorName", None)
-                    model = getattr(identity, "modelName", None)
-                    revision = getattr(identity, "revision", None)
-                    return (vendor, model, revision)
-
-            return (None, None, None)
+            # IedConnection_identify does not exist in this binding; use the
+            # MMS-layer Identify service via the underlying MmsConnection.
+            mms_conn = iec61850.IedConnection_getMmsConnection(self._connection)
+            if not mms_conn:
+                return (None, None, None)
+            mms_error = iec61850.MmsError_create()
+            identity = None
+            try:
+                identity = iec61850.MmsConnection_identify(mms_conn, mms_error)
+                if identity is None:
+                    return (None, None, None)
+                return (
+                    getattr(identity, "vendorName", None),
+                    getattr(identity, "modelName", None),
+                    getattr(identity, "revision", None),
+                )
+            finally:
+                if identity is not None and hasattr(iec61850, "MmsServerIdentity_destroy"):
+                    iec61850.MmsServerIdentity_destroy(identity)
+                if hasattr(iec61850, "MmsError_destroy"):
+                    iec61850.MmsError_destroy(mms_error)
 
         except NotConnectedError:
             raise

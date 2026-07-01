@@ -276,9 +276,9 @@ class TestGoCBClient(unittest.TestCase):
                         ld_elem = Mock()
                         ld_data = Mock()
 
-                        # getLogicalNodeList
+                        # logical nodes of the device
                         ln_list = Mock()
-                        mock_iec.IedConnection_getLogicalNodeList.return_value = (ln_list, 0)
+                        mock_iec.IedConnection_getLogicalDeviceDirectory.return_value = (ln_list, 0)
 
                         ln_elem = Mock()
                         ln_data = Mock()
