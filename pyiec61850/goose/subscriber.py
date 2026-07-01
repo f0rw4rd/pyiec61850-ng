@@ -350,12 +350,6 @@ class _PyGooseHandler(_GooseHandlerBase):
             except Exception:
                 pass
             try:
-                msg.num_data_set_entries = iec61850.GooseSubscriber_getNumberOfDataSetEntries(
-                    subscriber
-                )
-            except Exception:
-                pass
-            try:
                 msg.go_id = iec61850.GooseSubscriber_getGoId(subscriber)
             except Exception:
                 pass
@@ -368,11 +362,16 @@ class _PyGooseHandler(_GooseHandlerBase):
             except Exception:
                 pass
 
-            # Extract data set values
+            # Extract data set values. The entry count comes from the received
+            # MmsValue array size — GooseSubscriber_getNumberOfDataSetEntries
+            # does not exist in this binding (calling it raised AttributeError,
+            # which the broad except swallowed, leaving the count at 0 so no
+            # values were ever extracted).
             try:
                 data_set_values = iec61850.GooseSubscriber_getDataSetValues(subscriber)
                 if data_set_values:
-                    count = msg.num_data_set_entries
+                    count = iec61850.MmsValue_getArraySize(data_set_values)
+                    msg.num_data_set_entries = count
                     for i in range(count):
                         element = iec61850.MmsValue_getElement(data_set_values, i)
                         if element:
