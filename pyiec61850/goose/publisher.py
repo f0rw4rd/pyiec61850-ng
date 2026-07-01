@@ -348,8 +348,8 @@ class GoosePublisher:
                 except Exception:
                     try:
                         iec61850.LinkedList_destroy(data_set_values)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("could not destroy data set values linked list: %s", e)
 
     def increase_st_num(self) -> None:
         """
@@ -419,5 +419,5 @@ class GoosePublisher:
         """Destructor - ensure cleanup."""
         try:
             self.stop()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("could not stop GOOSE publisher during __del__: %s", e)

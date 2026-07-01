@@ -184,8 +184,8 @@ class LogClient:
                 result.entry_count = len(result.entries)
                 try:
                     iec61850.LinkedList_destroy(entries_list)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("destroying journal entries list: %s", e)
 
             return result
 
@@ -237,8 +237,8 @@ class LogClient:
                 result.entry_count = len(result.entries)
                 try:
                     iec61850.LinkedList_destroy(entries_list)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("destroying journal entries list: %s", e)
 
             return result
 
@@ -262,8 +262,8 @@ class LogClient:
 
                     try:
                         entry.entry_id = iec61850.MmsJournalEntry_getEntryID(data)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("reading journal entry id: %s", e)
 
                     try:
                         occur_time = iec61850.MmsJournalEntry_getOccurenceTime(data)
@@ -271,8 +271,8 @@ class LogClient:
                             entry.timestamp = datetime.fromtimestamp(
                                 occur_time / 1000.0, tz=timezone.utc
                             )
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("reading journal entry occurrence time: %s", e)
 
                     # Parse journal variables
                     try:
@@ -285,14 +285,14 @@ class LogClient:
                                     jv = JournalEntryData()
                                     try:
                                         jv.tag = iec61850.MmsJournalVariable_getTag(var_data)
-                                    except Exception:
-                                        pass
+                                    except Exception as e:
+                                        logger.debug("reading journal variable tag: %s", e)
                                     try:
                                         mms_val = iec61850.MmsJournalVariable_getValue(var_data)
                                         if mms_val:
                                             jv.value = _extract_mms_value(mms_val)
-                                    except Exception:
-                                        pass
+                                    except Exception as e:
+                                        logger.debug("reading journal variable value: %s", e)
                                     entry.values.append(jv)
                                 var_elem = iec61850.LinkedList_getNext(var_elem)
                     except Exception as e:

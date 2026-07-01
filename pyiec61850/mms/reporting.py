@@ -238,36 +238,36 @@ class ReportClient:
             if rcb_values:
                 try:
                     config.rpt_id = iec61850.ClientReportControlBlock_getRptId(rcb_values)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("could not read rpt_id: %s", e)
                 try:
                     config.data_set = iec61850.ClientReportControlBlock_getDataSetReference(
                         rcb_values
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("could not read data_set: %s", e)
                 try:
                     config.trigger_options = iec61850.ClientReportControlBlock_getTrgOps(rcb_values)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("could not read trigger_options: %s", e)
                 try:
                     config.option_fields = iec61850.ClientReportControlBlock_getOptFlds(rcb_values)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("could not read option_fields: %s", e)
                 try:
                     config.buffer_time = iec61850.ClientReportControlBlock_getBufTm(rcb_values)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("could not read buffer_time: %s", e)
                 try:
                     config.integrity_period = iec61850.ClientReportControlBlock_getIntgPd(
                         rcb_values
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("could not read integrity_period: %s", e)
                 try:
                     config.rpt_ena = iec61850.ClientReportControlBlock_getRptEna(rcb_values)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("could not read rpt_ena: %s", e)
 
             return config
 
@@ -517,38 +517,38 @@ class _PyRCBHandler(_RCBHandlerBase):
 
             try:
                 report.rpt_id = iec61850.ClientReport_getRptId(client_report)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("could not read rpt_id: %s", e)
             try:
                 report.data_set_name = iec61850.ClientReport_getDataSetName(client_report)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("could not read data_set_name: %s", e)
             try:
                 report.seq_num = iec61850.ClientReport_getSeqNum(client_report)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("could not read seq_num: %s", e)
             try:
                 report.sub_seq_num = iec61850.ClientReport_getSubSeqNum(client_report)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("could not read sub_seq_num: %s", e)
             try:
                 report.more_segments_follow = iec61850.ClientReport_getMoreSeqmentsFollow(
                     client_report
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("could not read more_segments_follow: %s", e)
             try:
                 report.has_timestamp = iec61850.ClientReport_hasTimestamp(client_report)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("could not read has_timestamp: %s", e)
             try:
                 report.buf_overflow = iec61850.ClientReport_hasBufOvfl(client_report)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("could not read buf_overflow: %s", e)
             try:
                 report.conf_rev = iec61850.ClientReport_getConfRev(client_report)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("could not read conf_rev: %s", e)
 
             # Extract data set values
             try:
@@ -565,8 +565,8 @@ class _PyRCBHandler(_RCBHandlerBase):
                                 entry.reason_code = iec61850.ClientReport_getReasonForInclusion(
                                     client_report, i
                                 )
-                            except Exception:
-                                pass
+                            except Exception as e:
+                                logger.debug("could not read reason_code: %s", e)
                             report.entries.append(entry)
             except Exception as e:
                 logger.warning(f"Failed to parse report entries: {e}")

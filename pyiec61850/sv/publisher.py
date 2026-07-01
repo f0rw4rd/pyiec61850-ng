@@ -338,5 +338,5 @@ class SVPublisher:
         """Destructor - ensure cleanup."""
         try:
             self.stop()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("could not stop SV publisher during __del__: %s", e)

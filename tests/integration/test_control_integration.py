@@ -14,6 +14,8 @@ tests mock the SWIG layer, which (as the write_value/identity bugs showed) can
 diverge from the real binding.
 """
 
+import contextlib
+
 from pyiec61850.mms import MMSClient
 from pyiec61850.mms.control import ControlClient, ControlError
 
@@ -32,14 +34,11 @@ class TestControlIntegration(ControlServerCase):
         self.control = ControlClient(self.client)
 
     def tearDown(self) -> None:
-        try:
+        # Best-effort cleanup: a teardown failure must not mask the test result.
+        with contextlib.suppress(Exception):
             self.control.release_all()
-        except Exception:
-            pass
-        try:
+        with contextlib.suppress(Exception):
             self.client.disconnect()
-        except Exception:
-            pass
 
     # -- control model discovery -------------------------------------------
 

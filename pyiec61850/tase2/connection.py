@@ -658,8 +658,8 @@ class MmsConnectionWrapper:
             if created_value:
                 try:
                     iec61850.MmsValue_delete(mms_value)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("deleting created mms value: %s", e)
 
     # =========================================================================
     # Data Set Create/Delete Operations
@@ -725,8 +725,8 @@ class MmsConnectionWrapper:
             if member_list:
                 try:
                     iec61850.LinkedList_destroy(member_list)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("destroying data set member list: %s", e)
 
     def delete_data_set(self, domain: str, name: str) -> bool:
         """
@@ -1133,8 +1133,8 @@ class MmsConnectionWrapper:
         """Destructor - ensure cleanup."""
         try:
             self.disconnect()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("disconnect during destructor: %s", e)
 
 
 _InfoReportHandlerBase = getattr(iec61850, "InformationReportHandler", object)

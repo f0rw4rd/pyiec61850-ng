@@ -211,8 +211,8 @@ class ControlClient:
                 last_error = 0
                 try:
                     last_error = iec61850.ControlObjectClient_getLastApplError(control)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("reading last appl error after select: %s", e)
                 raise SelectError(object_ref, f"server rejected (error {last_error})")
 
             logger.info(f"Selected control object: {object_ref}")
@@ -291,8 +291,8 @@ class ControlClient:
                 last_error = 0
                 try:
                     last_error = iec61850.ControlObjectClient_getLastApplError(control)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("reading last appl error after operate: %s", e)
                 raise OperateError(object_ref, f"server rejected (error {last_error})")
 
             logger.info(f"Operated: {object_ref} = {value}")
@@ -519,8 +519,8 @@ class _PyCommandTermHandler(_CommandTermHandlerBase):
                 last_error = iec61850.ControlObjectClient_getLastApplError(control)
                 result.last_error = last_error
                 result.success = last_error == 0
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("reading last appl error in control callback: %s", e)
 
             if self._callback:
                 try:

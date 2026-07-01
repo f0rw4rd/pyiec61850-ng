@@ -328,8 +328,8 @@ class MMSClient:
         if self._connection:
             try:
                 iec61850.IedConnection_destroy(self._connection)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("destroying iedconnection: %s", e)
         self._connection = None
         # Order matters: the IedConnection may hold a reference to the native
         # TLS configuration, so destroy the connection first, then the TLS
@@ -337,8 +337,8 @@ class MMSClient:
         if self._native_tls_config is not None:
             try:
                 destroy_tls_configuration(self._native_tls_config)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("destroying tls configuration: %s", e)
             self._native_tls_config = None
 
     def _ensure_connected(self) -> None:
@@ -351,8 +351,8 @@ class MMSClient:
         try:
             if hasattr(iec61850, "IedClientError_toString"):
                 return iec61850.IedClientError_toString(error)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("converting iedclienterror to string: %s", e)
         return f"Error code: {error}"
 
     # =========================================================================
@@ -868,5 +868,5 @@ class MMSClient:
         """Destructor - ensure cleanup."""
         try:
             self.disconnect()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("disconnect during __del__: %s", e)

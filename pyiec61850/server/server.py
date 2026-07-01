@@ -107,9 +107,7 @@ class IedServer:
             # path. Prefer the ..._Ex variant that takes a filename;
             # it is the only form callable from Python with a str.
             if hasattr(iec61850, "ConfigFileParser_createModelFromConfigFileEx"):
-                self._model = iec61850.ConfigFileParser_createModelFromConfigFileEx(
-                    model_path
-                )
+                self._model = iec61850.ConfigFileParser_createModelFromConfigFileEx(model_path)
             elif hasattr(iec61850, "IedModel_createFromConfigFile"):
                 self._model = iec61850.IedModel_createFromConfigFile(model_path)
             else:
@@ -277,8 +275,8 @@ class IedServer:
             try:
                 if hasattr(iec61850, "IedServerConfig_destroy"):
                     iec61850.IedServerConfig_destroy(self._ied_server_config)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("destroying IedServerConfig: %s", e)
         self._ied_server_config = None
 
         if self._model:
@@ -601,8 +599,8 @@ class IedServer:
         """Destructor - ensure cleanup."""
         try:
             self.stop()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("stopping server during __del__: %s", e)
 
 
 class _PyControlHandler:
@@ -620,8 +618,8 @@ class _PyControlHandler:
         if _HAS_IEC61850 and hasattr(iec61850, "ControlHandlerForPython"):
             try:
                 iec61850.ControlHandlerForPython.__init__(self)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("initializing ControlHandlerForPython: %s", e)
 
     def trigger(self):
         """Called by C++ subscriber when a control action arrives."""
@@ -631,12 +629,12 @@ class _PyControlHandler:
 
             try:
                 value = self._libiec61850_mms_value
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("reading control handler mms value: %s", e)
             try:
                 test = self._libiec61850_test
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("reading control handler test flag: %s", e)
 
             if self._callback:
                 try:

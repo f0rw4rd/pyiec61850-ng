@@ -264,8 +264,8 @@ class GooseSubscriber:
         if self._goose_subscriber_py:
             try:
                 self._goose_subscriber_py.deleteEventHandler()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("could not delete GOOSE event handler: %s", e)
 
         if self._receiver:
             try:
@@ -297,8 +297,8 @@ class GooseSubscriber:
         """Destructor - ensure cleanup."""
         try:
             self.stop()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("could not stop GOOSE subscriber during __del__: %s", e)
 
 
 _GooseHandlerBase = getattr(iec61850, "GooseHandler", object)
@@ -329,44 +329,44 @@ class _PyGooseHandler(_GooseHandlerBase):
             # Extract fields from the subscriber
             try:
                 msg.st_num = iec61850.GooseSubscriber_getStNum(subscriber)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("could not read stNum: %s", e)
             try:
                 msg.sq_num = iec61850.GooseSubscriber_getSqNum(subscriber)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("could not read sqNum: %s", e)
             try:
                 msg.is_valid = iec61850.GooseSubscriber_isValid(subscriber)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("could not read isValid: %s", e)
             try:
                 msg.parse_error = iec61850.GooseSubscriber_getParseError(subscriber)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("could not read parseError: %s", e)
             try:
                 msg.conf_rev = iec61850.GooseSubscriber_getConfRev(subscriber)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("could not read confRev: %s", e)
             try:
                 msg.needs_commissioning = iec61850.GooseSubscriber_needsCommission(subscriber)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("could not read needsCommissioning: %s", e)
             try:
                 msg.time_allowed_to_live = iec61850.GooseSubscriber_getTimeAllowedToLive(subscriber)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("could not read timeAllowedToLive: %s", e)
             try:
                 msg.go_id = iec61850.GooseSubscriber_getGoId(subscriber)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("could not read goId: %s", e)
             try:
                 msg.data_set = iec61850.GooseSubscriber_getDataSet(subscriber)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("could not read dataSet: %s", e)
             try:
                 msg.timestamp = datetime.now(tz=timezone.utc)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("could not set timestamp: %s", e)
 
             # Extract data set values. The entry count comes from the received
             # MmsValue array size — GooseSubscriber_getNumberOfDataSetEntries

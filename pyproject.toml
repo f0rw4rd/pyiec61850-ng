@@ -50,11 +50,17 @@ line-length = 100
 target-version = "py39"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "B", "C4", "UP"]
+# S110/S112: silently swallowing exceptions (try/except/pass|continue) hides the
+# phantom-function bug class (see tests/test_binding_contract.py) and real
+# runtime errors. Prefer logging at debug over a bare `pass`.
+select = ["E", "F", "W", "I", "B", "C4", "UP", "S110", "S112"]
 ignore = ["E501", "E402", "UP006", "UP007", "UP035", "UP045", "B904"]
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
+# PyInstaller runtime hook runs at bootstrap before any logging is configured;
+# a best-effort path setup that fails silently is correct there.
+"pyiec61850/_pyinstaller/*" = ["S110"]
 
 [project.urls]
 Homepage = "https://github.com/f0rw4rd/pyiec61850-ng"

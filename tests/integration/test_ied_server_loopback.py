@@ -17,6 +17,7 @@ Model: libiec61850's ``server_example_config_file/model.cfg`` —
 
 from __future__ import annotations
 
+import contextlib
 import os
 import socket
 import time
@@ -108,10 +109,9 @@ class TestIedServerLoopback(unittest.TestCase):
         self.client.connect()
 
     def tearDown(self) -> None:
-        try:
+        # Best-effort cleanup: a teardown failure must not mask the test result.
+        with contextlib.suppress(Exception):
             self.client.disconnect()
-        except Exception:
-            pass
 
     def test_server_reports_running(self):
         self.assertTrue(self.server.is_running)

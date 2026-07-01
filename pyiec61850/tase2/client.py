@@ -1050,14 +1050,14 @@ class TASE2Client:
             # Try generic float extraction
             try:
                 return iec61850.MmsValue_toFloat(mms_value)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("float extraction of mms value: %s", e)
 
             # Try int extraction
             try:
                 return iec61850.MmsValue_toInt32(mms_value)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("int extraction of mms value: %s", e)
 
             return mms_value
 
@@ -1647,8 +1647,8 @@ class TASE2Client:
                             if ts_value and hasattr(iec61850, "MmsValue_delete"):
                                 try:
                                     iec61850.MmsValue_delete(ts_value)
-                                except Exception:
-                                    pass
+                                except Exception as e:
+                                    logger.debug("deleting transfer set mms value: %s", e)
             except ImportError:
                 pass
             except Exception as e:
@@ -2133,7 +2133,8 @@ class TASE2Client:
                     self._im_transfer_set_enabled = True
                     logger.info(f"Enabled IM Transfer Set on {dom_name}")
                     return True
-                except Exception:
+                except Exception as e:
+                    logger.debug("enabling IM transfer set variable: %s", e)
                     continue
 
         raise IMTransferSetError("Failed to enable IM Transfer Set")
@@ -2170,7 +2171,8 @@ class TASE2Client:
                     self._im_transfer_set_enabled = False
                     logger.info(f"Disabled IM Transfer Set on {dom_name}")
                     return True
-                except Exception:
+                except Exception as e:
+                    logger.debug("disabling IM transfer set variable: %s", e)
                     continue
 
         raise IMTransferSetError("Failed to disable IM Transfer Set")
@@ -2203,7 +2205,8 @@ class TASE2Client:
                             enabled=bool(pv.value),
                             name=var_name,
                         )
-                except Exception:
+                except Exception as e:
+                    logger.debug("reading IM transfer set status variable: %s", e)
                     continue
 
         # Return default if not readable
@@ -2970,7 +2973,8 @@ class TASE2Client:
                     tag_value = int(pv.value)
                     tag_read = True
                     break
-            except Exception:
+            except Exception as e:
+                logger.debug("reading tag variable: %s", e)
                 continue
 
         if not tag_read:
@@ -2988,7 +2992,8 @@ class TASE2Client:
                 if pv.value is not None:
                     reason = str(pv.value)
                     break
-            except Exception:
+            except Exception as e:
+                logger.debug("reading tag reason variable: %s", e)
                 continue
 
         return TagState(
@@ -3172,8 +3177,8 @@ class TASE2Client:
                             and str(next_pv.value).strip() != current_name
                         ):
                             next_name = str(next_pv.value).strip()
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("reading next transfer set name: %s", e)
 
                 current_name = next_name
                 iteration += 1
@@ -3391,8 +3396,8 @@ class TASE2Client:
         """Destructor - ensure cleanup."""
         try:
             self.disconnect()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("disconnect during destructor: %s", e)
 
 
 # Alias for compatibility with libtase2 API

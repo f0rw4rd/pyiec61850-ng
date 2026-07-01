@@ -174,23 +174,23 @@ class FileClient:
                         info = FileInfo()
                         try:
                             info.name = iec61850.FileDirectoryEntry_getFileName(data)
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.debug("reading file directory entry name: %s", e)
                         try:
                             info.size = iec61850.FileDirectoryEntry_getFileSize(data)
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.debug("reading file directory entry size: %s", e)
                         try:
                             info.last_modified = iec61850.FileDirectoryEntry_getLastModified(data)
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            logger.debug("reading file directory entry last-modified: %s", e)
                         files.append(info)
                     element = iec61850.LinkedList_getNext(element)
 
                 try:
                     iec61850.LinkedList_destroy(file_list)
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug("destroying file list: %s", e)
 
             return files
 

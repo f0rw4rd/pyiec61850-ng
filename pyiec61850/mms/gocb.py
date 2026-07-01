@@ -162,53 +162,53 @@ class GoCBClient:
 
         try:
             info.goose_id = iec61850.ClientGooseControlBlock_getGoID(gocb) or ""
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("could not read goose_id: %s", e)
         try:
             info.dataset = iec61850.ClientGooseControlBlock_getDatSet(gocb) or ""
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("could not read dataset: %s", e)
         try:
             info.enabled = bool(iec61850.ClientGooseControlBlock_getGoEna(gocb))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("could not read enabled: %s", e)
         try:
             info.conf_rev = int(iec61850.ClientGooseControlBlock_getConfRev(gocb))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("could not read conf_rev: %s", e)
         try:
             info.min_time = int(iec61850.ClientGooseControlBlock_getMinTime(gocb))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("could not read min_time: %s", e)
         try:
             info.max_time = int(iec61850.ClientGooseControlBlock_getMaxTime(gocb))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("could not read max_time: %s", e)
         try:
             info.fixed_offs = bool(iec61850.ClientGooseControlBlock_getFixedOffs(gocb))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("could not read fixed_offs: %s", e)
         try:
             info.nds_comm = bool(iec61850.ClientGooseControlBlock_getNdsComm(gocb))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("could not read nds_comm: %s", e)
         try:
             info.appid = int(iec61850.ClientGooseControlBlock_getDstAddress_appid(gocb))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("could not read appid: %s", e)
         try:
             info.vlan_id = int(iec61850.ClientGooseControlBlock_getDstAddress_vid(gocb))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("could not read vlan_id: %s", e)
         try:
             info.vlan_priority = int(iec61850.ClientGooseControlBlock_getDstAddress_priority(gocb))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("could not read vlan_priority: %s", e)
         try:
             mac_value = iec61850.ClientGooseControlBlock_getDstAddress_addr(gocb)
             info.dst_mac = _format_mac(mac_value)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("could not read dst_mac: %s", e)
 
         return info
 

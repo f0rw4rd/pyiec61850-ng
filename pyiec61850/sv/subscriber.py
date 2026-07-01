@@ -246,8 +246,8 @@ class SVSubscriber:
         if self._sv_subscriber_py:
             try:
                 self._sv_subscriber_py.deleteEventHandler()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("could not delete SV event handler: %s", e)
 
         if self._receiver:
             try:
@@ -279,8 +279,8 @@ class SVSubscriber:
         """Destructor - ensure cleanup."""
         try:
             self.stop()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("could not stop SV subscriber during __del__: %s", e)
 
 
 def _decode_asdu(asdu) -> SVMessage:
@@ -296,21 +296,21 @@ def _decode_asdu(asdu) -> SVMessage:
     msg = SVMessage()
     try:
         msg.smp_cnt = iec61850.SVSubscriber_ASDU_getSmpCnt(asdu)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("could not read smpCnt: %s", e)
     try:
         msg.conf_rev = iec61850.SVSubscriber_ASDU_getConfRev(asdu)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("could not read confRev: %s", e)
     try:
         msg.smp_synch = iec61850.SVSubscriber_ASDU_getSmpSynch(asdu)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("could not read smpSynch: %s", e)
     try:
         if hasattr(iec61850, "SVSubscriber_ASDU_getSvId"):
             msg.sv_id = iec61850.SVSubscriber_ASDU_getSvId(asdu)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("could not read svId: %s", e)
     try:
         size = iec61850.SVSubscriber_ASDU_getDataSize(asdu)
         for offset in range(0, size, 4):
@@ -318,8 +318,8 @@ def _decode_asdu(asdu) -> SVMessage:
                 msg.values.append(iec61850.SVSubscriber_ASDU_getINT32(asdu, offset))
             except Exception:
                 break
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("could not read data set values: %s", e)
     msg.timestamp = datetime.now(tz=timezone.utc)
     return msg
 

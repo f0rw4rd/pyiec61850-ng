@@ -21,6 +21,7 @@ unavailable environment is not a regression in the library under test.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import shutil
 import socket
@@ -229,10 +230,9 @@ class IntegrationServerCase(unittest.TestCase):
         self.client.connect()
 
     def tearDown(self) -> None:
-        try:
+        # Best-effort cleanup: a teardown failure must not mask the test result.
+        with contextlib.suppress(Exception):
             self.client.disconnect()
-        except Exception:
-            pass
 
     # ------------------------------------------------------------------
     # Container management
