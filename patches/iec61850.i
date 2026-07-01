@@ -649,10 +649,24 @@ std::map< std::string, EventSubscriber*> EventSubscriber::m_subscriber_map = {};
 /* Goose Publisher section */
 %{
 #include "goose_publisher.h"
+#include <string.h>
+#include <stdlib.h>
 
 void LinkedList_destroyDeep_MmsValueDelete(LinkedList dataSetValues)
 {
     LinkedList_destroyDeep(dataSetValues, (LinkedListValueDeleteFunction) MmsValue_delete);
+}
+/* Append a heap-allocated copy of a string to a LinkedList<char*>. SWIG cannot
+ * put a Python str into the void* slot of LinkedList_add, so callers building a
+ * list of references (e.g. IedConnection_createDataSet elements) use this and
+ * free it with LinkedList_destroyDeepStringFree. */
+void LinkedList_addStringCopy(LinkedList list, const char* str)
+{
+    LinkedList_add(list, (void*) strdup(str));
+}
+void LinkedList_destroyDeepStringFree(LinkedList list)
+{
+    LinkedList_destroyDeep(list, (LinkedListValueDeleteFunction) free);
 }
 void CommParameters_setDstAddress(CommParameters *gooseCommParameters,
                                   uint8_t dst_mac_0,
@@ -672,6 +686,8 @@ void CommParameters_setDstAddress(CommParameters *gooseCommParameters,
 %}
 %include "goose_publisher.h"
 void LinkedList_destroyDeep_MmsValueDelete(LinkedList dataSetValues);
+void LinkedList_addStringCopy(LinkedList list, const char* str);
+void LinkedList_destroyDeepStringFree(LinkedList list);
 void CommParameters_setDstAddress(CommParameters *gooseCommParameters,
                                   uint8_t dst_mac_0,
                                   uint8_t dst_mac_1,

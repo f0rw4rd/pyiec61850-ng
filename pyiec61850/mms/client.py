@@ -662,9 +662,12 @@ class MMSClient:
             error_code = iec61850.MmsError_getValue(mms_error)
 
             if error_code != 0:
+                # MmsError_toString takes the enum value (int) from
+                # MmsError_getValue, not the MmsError_create() wrapper — passing
+                # the wrapper raises TypeError from SWIG (see download_file).
                 raise ReadError(
                     f"Dataset read failed for {dataset_ref}: "
-                    f"MMS error {iec61850.MmsError_toString(mms_error)}"
+                    f"MMS error {iec61850.MmsError_toString(error_code)}"
                 )
             if not values:
                 raise ReadError(f"Dataset read returned no data for {dataset_ref}")

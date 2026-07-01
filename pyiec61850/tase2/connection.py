@@ -551,19 +551,38 @@ class MmsConnectionWrapper:
             variable: Variable name
 
         Returns:
-            MmsValue object or Python value
+            The raw MmsValue (the caller parses it and frees it).
         """
         self._ensure_connected()
 
         try:
-            result = iec61850.IedConnection_readObject(self._connection, domain, variable)
+            # TASE.2 points are plain MMS named variables, so read them via the
+            # MMS layer. IedConnection_readObject is the IEC 61850 FC-based API
+            # and needs a FunctionalConstraint 4th arg — passing (domain,
+            # variable) as (objectRef, fc) raised a SWIG TypeError.
+            mms_conn = iec61850.IedConnection_getMmsConnection(self._connection)
+            if not mms_conn:
+                raise TASE2Error(f"No MMS connection available to read {domain}/{variable}")
 
-            if isinstance(result, tuple):
-                value, error = result
-                if error != iec61850.IED_ERROR_OK:
-                    raise map_ied_error(error, f"{domain}/{variable}")
-                return value
-            return result
+            # MmsError* is a caller-owned arg here (the typemap intercepts only
+            # IedClientError*), so allocate one and read the value directly.
+            mms_error = iec61850.MmsError_create()
+            try:
+                mms_value = iec61850.MmsConnection_readVariable(
+                    mms_conn, mms_error, domain, variable
+                )
+                code = iec61850.MmsError_getValue(mms_error)
+                if code != 0:
+                    raise TASE2Error(
+                        f"Failed to read {domain}/{variable}: "
+                        f"MMS error {iec61850.MmsError_toString(code)}"
+                    )
+                if not mms_value:
+                    raise TASE2Error(f"Read of {domain}/{variable} returned no value")
+                return mms_value
+            finally:
+                if hasattr(iec61850, "MmsError_destroy"):
+                    iec61850.MmsError_destroy(mms_error)
 
         except NotConnectedError:
             raise
@@ -623,18 +642,28 @@ class MmsConnectionWrapper:
         created_value = mms_value is not value
 
         try:
-            # writeObject returns a (None, error) tuple in this binding; unwrap
-            # it (matches the read paths) — treating the tuple as the error made
-            # every write raise, even on success.
-            result = iec61850.IedConnection_writeObject(
-                self._connection, domain, variable, mms_value
-            )
-            error = result[-1] if isinstance(result, tuple) else result
+            # TASE.2 points are plain MMS named variables — write via the MMS
+            # layer. IedConnection_writeObject is the IEC 61850 FC-based API and
+            # needs a FunctionalConstraint 3rd arg (SWIG TypeError otherwise).
+            mms_conn = iec61850.IedConnection_getMmsConnection(self._connection)
+            if not mms_conn:
+                raise TASE2Error(f"No MMS connection available to write {domain}/{variable}")
 
-            if error != iec61850.IED_ERROR_OK:
-                raise map_ied_error(error, f"{domain}/{variable}")
-
-            return True
+            mms_error = iec61850.MmsError_create()
+            try:
+                iec61850.MmsConnection_writeVariable(
+                    mms_conn, mms_error, domain, variable, mms_value
+                )
+                code = iec61850.MmsError_getValue(mms_error)
+                if code != 0:
+                    raise TASE2Error(
+                        f"Failed to write {domain}/{variable}: "
+                        f"MMS error {iec61850.MmsError_toString(code)}"
+                    )
+                return True
+            finally:
+                if hasattr(iec61850, "MmsError_destroy"):
+                    iec61850.MmsError_destroy(mms_error)
 
         except NotConnectedError:
             raise
@@ -683,7 +712,10 @@ class MmsConnectionWrapper:
         try:
             ds_ref = f"{domain}/{name}"
 
-            # Build LinkedList of member references
+            # Build LinkedList of member references. LinkedList_add takes a
+            # void*, so a Python str cannot go in directly (SWIG raises
+            # TypeError) — LinkedList_addStringCopy stores a strdup'd copy, freed
+            # by LinkedList_destroyDeepStringFree below.
             member_list = iec61850.LinkedList_create()
             for member_ref in members:
                 # Each member should be domain/variable format
@@ -691,7 +723,7 @@ class MmsConnectionWrapper:
                     full_ref = f"{domain}/{member_ref}"
                 else:
                     full_ref = member_ref
-                iec61850.LinkedList_add(member_list, full_ref)
+                iec61850.LinkedList_addStringCopy(member_list, full_ref)
 
             error = iec61850.IedConnection_createDataSet(self._connection, ds_ref, member_list)
 
@@ -713,7 +745,8 @@ class MmsConnectionWrapper:
         finally:
             if member_list:
                 try:
-                    iec61850.LinkedList_destroy(member_list)
+                    # destroyDeepStringFree frees the strdup'd member strings too.
+                    iec61850.LinkedList_destroyDeepStringFree(member_list)
                 except Exception as e:
                     logger.debug("destroying data set member list: %s", e)
 

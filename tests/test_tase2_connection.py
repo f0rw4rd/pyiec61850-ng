@@ -643,31 +643,50 @@ class TestReadDataSetValues(_WrapperTestBase):
 
 
 class TestReadWriteVariable(_WrapperTestBase):
+    # read_variable reads TASE.2 points via the MMS layer
+    # (IedConnection_getMmsConnection -> MmsConnection_readVariable), returning
+    # the raw MmsValue for the caller to parse and free.
+    def _wire_mms_read(self, value, code=0):
+        self.iec.IedConnection_getMmsConnection.return_value = object()
+        self.iec.MmsConnection_readVariable.return_value = value
+        self.iec.MmsError_getValue.return_value = code
+
     def test_read_variable_success(self):
-        self.iec.IedConnection_readObject.return_value = (230.5, IED_ERROR_OK)
+        sentinel = object()  # raw MmsValue, returned as-is
+        self._wire_mms_read(sentinel, code=0)
         w = self._connected_wrapper()
-        self.assertEqual(w.read_variable("ICC1", "Voltage"), 230.5)
+        self.assertIs(w.read_variable("ICC1", "Voltage"), sentinel)
 
-    def test_read_variable_error_maps(self):
-        from pyiec61850.tase2.exceptions import VariableNotFoundError
+    def test_read_variable_mms_error_raises(self):
+        from pyiec61850.tase2.exceptions import TASE2Error
 
-        self.iec.IedConnection_readObject.return_value = (
-            None,
-            IED_ERROR_OBJECT_DOES_NOT_EXIST,
-        )
+        self._wire_mms_read(None, code=3)  # non-zero MMS error
+        self.iec.MmsError_toString.return_value = "access-denied"
         w = self._connected_wrapper()
-        with self.assertRaises(VariableNotFoundError):
+        with self.assertRaises(TASE2Error):
             w.read_variable("ICC1", "Nope")
 
-    def test_read_variable_non_tuple(self):
-        self.iec.IedConnection_readObject.return_value = 42
+    def test_read_variable_null_value_raises(self):
+        from pyiec61850.tase2.exceptions import TASE2Error
+
+        self._wire_mms_read(None, code=0)  # success but no value
         w = self._connected_wrapper()
-        self.assertEqual(w.read_variable("ICC1", "V"), 42)
+        with self.assertRaises(TASE2Error):
+            w.read_variable("ICC1", "V")
+
+    def test_read_variable_no_mms_connection(self):
+        from pyiec61850.tase2.exceptions import TASE2Error
+
+        self.iec.IedConnection_getMmsConnection.return_value = None
+        w = self._connected_wrapper()
+        with self.assertRaises(TASE2Error):
+            w.read_variable("ICC1", "V")
 
     def test_read_variable_unexpected_exception(self):
         from pyiec61850.tase2.exceptions import TASE2Error
 
-        self.iec.IedConnection_readObject.side_effect = RuntimeError("boom")
+        self.iec.IedConnection_getMmsConnection.return_value = object()
+        self.iec.MmsConnection_readVariable.side_effect = RuntimeError("boom")
         w = self._connected_wrapper()
         with self.assertRaises(TASE2Error):
             w.read_variable("ICC1", "V")
@@ -715,21 +734,29 @@ class TestReadWriteVariable(_WrapperTestBase):
         with self.assertRaises(TASE2Error):
             w._create_mms_value(1.0)
 
+    # write_variable writes TASE.2 points via the MMS layer
+    # (IedConnection_getMmsConnection -> MmsConnection_writeVariable), checking
+    # the MmsError out-param.
+    def _wire_mms_write(self, code=0):
+        self.iec.IedConnection_getMmsConnection.return_value = object()
+        self.iec.MmsError_getValue.return_value = code
+
     def test_write_variable_success_deletes_created_value(self):
         created = object()
         self.iec.MmsValue_newFloat.return_value = created
-        self.iec.IedConnection_writeObject.return_value = (None, IED_ERROR_OK)
+        self._wire_mms_write(code=0)
         w = self._connected_wrapper()
         self.assertTrue(w.write_variable("ICC1", "SP", 1.0))
         self.iec.MmsValue_delete.assert_called_once_with(created)
 
-    def test_write_variable_error_maps(self):
-        from pyiec61850.tase2.exceptions import AccessDeniedError
+    def test_write_variable_mms_error_raises(self):
+        from pyiec61850.tase2.exceptions import TASE2Error
 
         self.iec.MmsValue_newFloat.return_value = object()
-        self.iec.IedConnection_writeObject.return_value = (None, IED_ERROR_ACCESS_DENIED)
+        self._wire_mms_write(code=3)  # non-zero MMS error
+        self.iec.MmsError_toString.return_value = "access-denied"
         w = self._connected_wrapper()
-        with self.assertRaises(AccessDeniedError):
+        with self.assertRaises(TASE2Error):
             w.write_variable("ICC1", "SP", 1.0)
         # Even on error, a created value is deleted in the finally block.
         self.iec.MmsValue_delete.assert_called_once()
@@ -739,14 +766,14 @@ class TestReadWriteVariable(_WrapperTestBase):
         class MmsValue:  # noqa: N801
             pass
 
-        self.iec.IedConnection_writeObject.return_value = (None, IED_ERROR_OK)
+        self._wire_mms_write(code=0)
         w = self._connected_wrapper()
         self.assertTrue(w.write_variable("ICC1", "SP", MmsValue()))
         self.iec.MmsValue_delete.assert_not_called()
 
     def test_write_variable_delete_error_swallowed(self):
         self.iec.MmsValue_newFloat.return_value = object()
-        self.iec.IedConnection_writeObject.return_value = (None, IED_ERROR_OK)
+        self._wire_mms_write(code=0)
         self.iec.MmsValue_delete.side_effect = RuntimeError("delete fail")
         w = self._connected_wrapper()
         # delete error in finally is swallowed.
@@ -764,9 +791,10 @@ class TestDataSetCreateDelete(_WrapperTestBase):
         self.iec.IedConnection_createDataSet.return_value = IED_ERROR_OK
         w = self._connected_wrapper()
         self.assertTrue(w.create_data_set("ICC1", "DS1", ["A", "ICC1/B"]))
-        self.iec.LinkedList_destroy.assert_called_once()
-        # Two members added (one bare, one fully-qualified).
-        self.assertEqual(self.iec.LinkedList_add.call_count, 2)
+        # Deep-free the strdup'd member strings.
+        self.iec.LinkedList_destroyDeepStringFree.assert_called_once()
+        # Two members added (one bare, one fully-qualified) via the str-copy helper.
+        self.assertEqual(self.iec.LinkedList_addStringCopy.call_count, 2)
 
     def test_create_no_members(self):
         from pyiec61850.tase2.exceptions import TASE2Error
@@ -791,8 +819,8 @@ class TestDataSetCreateDelete(_WrapperTestBase):
         w = self._connected_wrapper()
         with self.assertRaises(AccessDeniedError):
             w.create_data_set("ICC1", "DS1", ["A"])
-        # member_list still destroyed in finally.
-        self.iec.LinkedList_destroy.assert_called_once()
+        # member_list still deep-freed in finally.
+        self.iec.LinkedList_destroyDeepStringFree.assert_called_once()
 
     def test_create_error_tuple_unpacked(self):
         from pyiec61850.tase2.exceptions import AccessDeniedError

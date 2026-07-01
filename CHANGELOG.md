@@ -3,6 +3,36 @@
 All notable changes to this project are documented here. Versioning follows
 `LIBIEC61850_VERSION.REVISION` (see `version.py`).
 
+## 1.6.1.7
+
+### Fixed — TASE.2 (found by running the examples against a live server)
+- **connect() and write always failed.** `IedConnection_connect` /
+  `IedConnection_writeObject` return a `(None, error)` tuple in this binding;
+  both treated the tuple as the error code, so `(None, 0) != IED_ERROR_OK` was
+  always true — every connect raised even on success.
+- **read_variable / write_variable used the wrong API.** They called the IEC
+  61850 FC-based `IedConnection_readObject`/`writeObject` (which need a
+  `FunctionalConstraint`), raising a SWIG `TypeError` on every TASE.2 point
+  access. They now use the MMS-layer `MmsConnection_readVariable` /
+  `MmsConnection_writeVariable`.
+- **create_data_set crashed.** `LinkedList_add(list, python_str)` needs a
+  `void*`, not a str. Added binding helpers `LinkedList_addStringCopy` /
+  `LinkedList_destroyDeepStringFree` (strdup the member references, free them on
+  destroy) and use them.
+- LinkedList iteration/cleanup in the discovery/file methods now goes through the
+  `mms.utils` guards (NULL-safe `toCharP`, guaranteed `LinkedList_destroy`).
+
+### Fixed — MMS
+- **read_dataset error reporting crashed.** On a failed dataset read it called
+  `MmsError_toString(mms_error)` with the `MmsError_create()` wrapper instead of
+  the enum value from `MmsError_getValue`, raising `TypeError` and masking the
+  real error (the download path already had this right).
+
+### Tests
+- All 17 example scripts run without a code-level crash (verified against live
+  MMS/GOOSE/SV servers; TASE.2 paths reach the server and surface clean protocol
+  errors). Raw-binding `test_connection.py` no longer mishandles the connect tuple.
+
 ## 1.6.1.6
 
 ### Added

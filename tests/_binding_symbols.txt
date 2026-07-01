@@ -838,10 +838,12 @@ ItuObjectIdentifier_getArcCount
 LastApplError
 LibIEC61850_getVersionString
 LinkedList_add
+LinkedList_addStringCopy
 LinkedList_contains
 LinkedList_create
 LinkedList_destroy
 LinkedList_destroyDeep
+LinkedList_destroyDeepStringFree
 LinkedList_destroyDeep_MmsValueDelete
 LinkedList_destroyStatic
 LinkedList_get
