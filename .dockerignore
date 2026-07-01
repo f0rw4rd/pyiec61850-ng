@@ -12,3 +12,13 @@ Dockerfile*
 *.log
 docs/
 site/
+# Generated/native build artifacts — must NOT enter the build context. If a dev
+# has run the extension locally, a stale per-interpreter .so (which links the
+# auditwheel-mangled libiec61850 name) rides into every wheel and breaks
+# `auditwheel repair` for the other interpreters.
+pyiec61850/pyiec61850.py
+pyiec61850/_pyiec61850*.so
+*.so
+pyiec61850.libs/
+pyiec61850_ng.libs/
+wheelhouse/
