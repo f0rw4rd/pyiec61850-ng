@@ -1339,7 +1339,6 @@ SVSubscriber_ASDU_getRefrTmAsNs
 SVSubscriber_ASDU_getSmpCnt
 SVSubscriber_ASDU_getSmpMod
 SVSubscriber_ASDU_getSmpRate
-SVSubscriber_ASDU_getSmpSynch
 SVSubscriber_ASDU_getSvId
 SVSubscriber_ASDU_getTimestamp
 SVSubscriber_ASDU_hasDatSet

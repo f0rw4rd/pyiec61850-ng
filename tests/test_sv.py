@@ -417,7 +417,6 @@ class TestSVSubscriberCrashPaths(unittest.TestCase):
             with patch("pyiec61850.sv.subscriber.iec61850") as mock_iec:
                 mock_iec.SVSubscriber_ASDU_getSmpCnt.return_value = 42
                 mock_iec.SVSubscriber_ASDU_getConfRev.return_value = 1
-                mock_iec.SVSubscriber_ASDU_getSmpSynch.return_value = 0
                 mock_iec.SVSubscriber_ASDU_getDataSize.return_value = 16  # 4 x INT32
                 samples = {0: 100, 4: 200, 8: 300, 12: 400}
                 mock_iec.SVSubscriber_ASDU_getINT32.side_effect = lambda _a, off: samples[off]
@@ -437,7 +436,6 @@ class TestSVSubscriberCrashPaths(unittest.TestCase):
             with patch("pyiec61850.sv.subscriber.iec61850") as mock_iec:
                 mock_iec.SVSubscriber_ASDU_getSmpCnt.return_value = 0
                 mock_iec.SVSubscriber_ASDU_getConfRev.return_value = 0
-                mock_iec.SVSubscriber_ASDU_getSmpSynch.return_value = 0
                 mock_iec.SVSubscriber_ASDU_getDataSize.return_value = 0
 
                 from pyiec61850.sv.subscriber import _decode_asdu

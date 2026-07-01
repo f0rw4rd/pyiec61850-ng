@@ -615,6 +615,10 @@ void GooseSubscriber_setDstMac(GooseSubscriber subscriber,
 %ignore SV_ASDU_setSmpRate;
 %ignore SV_ASDU_setRefrTm;
 %ignore SV_ASDU_resetBuffer;
+/* Declared in sv_subscriber.h but not exported by the Windows libiec61850 build
+ * (links fine on Linux) — wrapping it makes the .pyd link fail with LNK2019.
+ * The sample-synch flag is a minor field, so drop it for cross-platform builds. */
+%ignore SVSubscriber_ASDU_getSmpSynch;
 %include "sv_publisher.h"
 %include "sv_subscriber.h"
 

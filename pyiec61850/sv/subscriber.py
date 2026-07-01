@@ -302,10 +302,8 @@ def _decode_asdu(asdu) -> SVMessage:
         msg.conf_rev = iec61850.SVSubscriber_ASDU_getConfRev(asdu)
     except Exception as e:
         logger.debug("could not read confRev: %s", e)
-    try:
-        msg.smp_synch = iec61850.SVSubscriber_ASDU_getSmpSynch(asdu)
-    except Exception as e:
-        logger.debug("could not read smpSynch: %s", e)
+    # smpSynch is intentionally not read: SVSubscriber_ASDU_getSmpSynch is not
+    # exported by the Windows libiec61850 build, so it is %ignore'd in the binding.
     try:
         if hasattr(iec61850, "SVSubscriber_ASDU_getSvId"):
             msg.sv_id = iec61850.SVSubscriber_ASDU_getSvId(asdu)
