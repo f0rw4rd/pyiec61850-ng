@@ -26,6 +26,9 @@ class GooseMessage:
     timestamp: Optional[datetime] = None
     values: List[Any] = field(default_factory=list)
     num_data_set_entries: int = 0
+    # libiec61850 GooseParseError (0 == GOOSE_PARSE_ERROR_NO_ERROR). Non-zero
+    # means the frame's payload could not be decoded (e.g. 4 == OVERFLOW).
+    parse_error: int = 0
 
     def to_dict(self) -> Dict[str, Any]:
         result = {
@@ -40,6 +43,7 @@ class GooseMessage:
             "needs_commissioning": self.needs_commissioning,
             "time_allowed_to_live": self.time_allowed_to_live,
             "num_data_set_entries": self.num_data_set_entries,
+            "parse_error": self.parse_error,
         }
         if self.timestamp:
             result["timestamp"] = self.timestamp.isoformat()

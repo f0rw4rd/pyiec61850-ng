@@ -177,10 +177,12 @@ class GooseSubscriber:
             raise AlreadyStartedError()
 
         try:
-            # Create GOOSE subscriber
-            # v1.6.1.0: dataSetValues must not be NULL, use empty array
-            empty_ds = iec61850.MmsValue_createEmptyArray(0)
-            self._subscriber = iec61850.GooseSubscriber_create(self._go_cb_ref, empty_ds)
+            # Create GOOSE subscriber. dataSetValues=NULL tells libiec61850 to
+            # auto-build the data set from each received frame. Passing a fixed
+            # (here zero-length) template instead makes the ASN.1 decoder
+            # overflow on the received allData (getParseError()==4), so no values
+            # ever decode. The binding's typemap permits NULL for this call.
+            self._subscriber = iec61850.GooseSubscriber_create(self._go_cb_ref, None)
             if not self._subscriber:
                 raise SubscriptionError("Failed to create GooseSubscriber")
 
@@ -335,6 +337,10 @@ class _PyGooseHandler(_GooseHandlerBase):
                 pass
             try:
                 msg.is_valid = iec61850.GooseSubscriber_isValid(subscriber)
+            except Exception:
+                pass
+            try:
+                msg.parse_error = iec61850.GooseSubscriber_getParseError(subscriber)
             except Exception:
                 pass
             try:

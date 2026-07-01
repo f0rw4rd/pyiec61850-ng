@@ -5,15 +5,15 @@ GOOSE uses an AF_PACKET raw socket (needs CAP_NET_RAW), so instead of requiring
 raw-socket privileges on the host/CI runner we run the publisher AND subscriber
 together in one container (same netns, on `lo`) with ``--cap-add=NET_RAW``. The
 worker (``_goose_roundtrip_worker.py``) publishes GOOSE frames and subscribes to
-them, printing ``ROUNDTRIP_OK`` when the subscriber receives them.
+them, printing ``ROUNDTRIP_OK`` only when the subscriber receives them, parses
+cleanly (``getParseError()==0``), and decodes the data-set values.
 
 This is the real-binding coverage that was missing when issue #20 shipped:
 ``GoosePublisher.start()`` crashed item-assigning the SWIG ``dstAddress`` array,
-and no integration test ever started a real publisher.
-
-Note: only the frame round-trip (delivery + header) is asserted. Decoding the
-GOOSE *dataset values* is currently broken at the libiec61850 layer
-(``GooseSubscriber_getParseError`` == 4 / OVERFLOW) and is tracked separately.
+and no integration test ever started a real publisher. It also guards the
+value-decode fix (passing NULL data-set values to ``GooseSubscriber_create`` so
+libiec61850 auto-builds the data set instead of overflowing a zero-length
+template).
 """
 
 import os
@@ -69,6 +69,7 @@ class TestGooseRoundtripDocker(unittest.TestCase):
             msg=f"publisher/subscriber did not round-trip.\n"
             f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}",
         )
+        self.assertIn("parse_error=0", proc.stdout, msg=proc.stdout)
         self.assertEqual(proc.returncode, 0, msg=proc.stderr)
 
 

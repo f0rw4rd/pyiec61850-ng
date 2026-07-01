@@ -10,10 +10,13 @@ All notable changes to this project are documented here. Versioning follows
   `CommParameters.dstAddress` — a SWIG `uint8_t[6]` that has no item assignment
   — raising `TypeError` and making GOOSE publishing unusable. Now uses the
   `CommParameters_setDstAddress` helper.
-- **GOOSE subscriber never returned values.** `trigger()` counted data-set
-  entries with the non-existent `GooseSubscriber_getNumberOfDataSetEntries` (the
-  `AttributeError` was swallowed, leaving the count at 0). Now uses
-  `MmsValue_getArraySize`.
+- **GOOSE subscriber never returned values.** Two bugs: `trigger()` counted
+  data-set entries with the non-existent `GooseSubscriber_getNumberOfDataSetEntries`
+  (`AttributeError` swallowed → count 0; now `MmsValue_getArraySize`), and
+  `start()` passed a zero-length template to `GooseSubscriber_create`, which made
+  libiec61850 overflow (`getParseError()==4`) on the received `allData` so nothing
+  decoded. It now passes NULL data-set values so libiec61850 auto-builds the data
+  set from each frame; values round-trip correctly.
 - **More calls to binding functions that don't exist** (same class as the two
   above), found by a new contract test and fixed: `MMSClient.get_data_attributes`
   used a phantom ACSI class and always returned `[]` (now uses
@@ -33,11 +36,8 @@ All notable changes to this project are documented here. Versioning follows
   `tests/_binding_symbols.txt` (unless `hasattr`-guarded or allowlisted) — the
   guardrail for the whole "phantom function" bug class. Runs without the native
   extension. (SV and the TLS cert path are allowlisted as known-unsupported.)
-
-### Known issues
-- GOOSE data-set **values** don't round-trip yet: the header decodes but
-  libiec61850 reports parse error 4 (OVERFLOW) on the `allData` payload (on both
-  `lo` and a veth pair). Tracked separately.
+- The Docker GOOSE round-trip now verifies decoded data-set values and
+  `parse_error==0`, not just frame delivery.
 
 ## 1.6.1.4
 
