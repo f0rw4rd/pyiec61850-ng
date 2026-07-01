@@ -262,7 +262,7 @@ class TestConnectDisconnect(_WrapperTestBase):
         from pyiec61850.tase2.constants import STATE_CONNECTED
 
         self.iec.IedConnection_create.return_value = object()
-        self.iec.IedConnection_connect.return_value = IED_ERROR_OK
+        self.iec.IedConnection_connect.return_value = (None, IED_ERROR_OK)
 
         w = self._new_wrapper()
         # Avoid spinning the real monitor thread.
@@ -287,7 +287,7 @@ class TestConnectDisconnect(_WrapperTestBase):
         from pyiec61850.tase2.exceptions import ConnectionFailedError
 
         self.iec.IedConnection_create.return_value = object()
-        self.iec.IedConnection_connect.return_value = IED_ERROR_TIMEOUT
+        self.iec.IedConnection_connect.return_value = (None, IED_ERROR_TIMEOUT)
         self.iec.IedClientError_toString.return_value = "timeout"
 
         w = self._new_wrapper()
@@ -300,7 +300,7 @@ class TestConnectDisconnect(_WrapperTestBase):
 
     def test_connect_configures_iso_params_when_ap_title_set(self):
         self.iec.IedConnection_create.return_value = object()
-        self.iec.IedConnection_connect.return_value = IED_ERROR_OK
+        self.iec.IedConnection_connect.return_value = (None, IED_ERROR_OK)
         self.iec.IedConnection_getMmsConnection.return_value = object()
         self.iec.MmsConnection_getIsoConnectionParameters.return_value = object()
 
@@ -311,7 +311,7 @@ class TestConnectDisconnect(_WrapperTestBase):
 
     def test_connect_reconnects_when_already_connected(self):
         self.iec.IedConnection_create.return_value = object()
-        self.iec.IedConnection_connect.return_value = IED_ERROR_OK
+        self.iec.IedConnection_connect.return_value = (None, IED_ERROR_OK)
 
         w = self._connected_wrapper()
         with patch.object(w, "disconnect") as mock_disc, patch.object(w, "_start_state_monitor"):
@@ -711,7 +711,7 @@ class TestReadWriteVariable(_WrapperTestBase):
     def test_write_variable_success_deletes_created_value(self):
         created = object()
         self.iec.MmsValue_newFloat.return_value = created
-        self.iec.IedConnection_writeObject.return_value = IED_ERROR_OK
+        self.iec.IedConnection_writeObject.return_value = (None, IED_ERROR_OK)
         w = self._connected_wrapper()
         self.assertTrue(w.write_variable("ICC1", "SP", 1.0))
         self.iec.MmsValue_delete.assert_called_once_with(created)
@@ -720,7 +720,7 @@ class TestReadWriteVariable(_WrapperTestBase):
         from pyiec61850.tase2.exceptions import AccessDeniedError
 
         self.iec.MmsValue_newFloat.return_value = object()
-        self.iec.IedConnection_writeObject.return_value = IED_ERROR_ACCESS_DENIED
+        self.iec.IedConnection_writeObject.return_value = (None, IED_ERROR_ACCESS_DENIED)
         w = self._connected_wrapper()
         with self.assertRaises(AccessDeniedError):
             w.write_variable("ICC1", "SP", 1.0)
@@ -732,14 +732,14 @@ class TestReadWriteVariable(_WrapperTestBase):
         class MmsValue:  # noqa: N801
             pass
 
-        self.iec.IedConnection_writeObject.return_value = IED_ERROR_OK
+        self.iec.IedConnection_writeObject.return_value = (None, IED_ERROR_OK)
         w = self._connected_wrapper()
         self.assertTrue(w.write_variable("ICC1", "SP", MmsValue()))
         self.iec.MmsValue_delete.assert_not_called()
 
     def test_write_variable_delete_error_swallowed(self):
         self.iec.MmsValue_newFloat.return_value = object()
-        self.iec.IedConnection_writeObject.return_value = IED_ERROR_OK
+        self.iec.IedConnection_writeObject.return_value = (None, IED_ERROR_OK)
         self.iec.MmsValue_delete.side_effect = RuntimeError("delete fail")
         w = self._connected_wrapper()
         # delete error in finally is swallowed.

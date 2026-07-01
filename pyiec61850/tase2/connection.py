@@ -226,8 +226,11 @@ class MmsConnectionWrapper:
             if self._local_ap_title or self._remote_ap_title:
                 self._configure_iso_parameters()
 
-            # Connect to server
-            error = iec61850.IedConnection_connect(self._connection, host, port)
+            # Connect to server. IedConnection_connect returns void in C; the
+            # SWIG typemap turns the IedClientError* out-param into a
+            # (None, error) tuple, so unwrap it (matches the reads below).
+            result = iec61850.IedConnection_connect(self._connection, host, port)
+            error = result[-1] if isinstance(result, tuple) else result
 
             if error != iec61850.IED_ERROR_OK:
                 error_str = self._get_error_string(error)
@@ -638,9 +641,13 @@ class MmsConnectionWrapper:
         created_value = mms_value is not value
 
         try:
-            error = iec61850.IedConnection_writeObject(
+            # writeObject returns a (None, error) tuple in this binding; unwrap
+            # it (matches the read paths) — treating the tuple as the error made
+            # every write raise, even on success.
+            result = iec61850.IedConnection_writeObject(
                 self._connection, domain, variable, mms_value
             )
+            error = result[-1] if isinstance(result, tuple) else result
 
             if error != iec61850.IED_ERROR_OK:
                 raise map_ied_error(error, f"{domain}/{variable}")
